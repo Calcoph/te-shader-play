@@ -1,24 +1,32 @@
-use imgui::{Context, Ui};
-use imgui_wgpu::{Renderer, RendererConfig};
+use imgui::{Context, Ui, ConfigFlags, Image, TextureId, StyleVar};
+use imgui_wgpu::{Renderer, RendererConfig, Texture as ImTexture, TextureConfig};
 use imgui_winit_support::{WinitPlatform, HiDpiMode};
 use wgpu::{TextureView, CommandEncoder};
 use winit::{window::Window as WinitWindow, event::Event};
 
 use crate::state::Gpu;
 
-struct UiState {
+const IMAGE_HEIGHT: f32 = 512.0;
+const IMAGE_WIDTH: f32 = 512.0;
 
+pub struct UiState {
+    pub texture_id: TextureId
 }
 
 impl UiState {
-    fn new() -> UiState {
+    fn new(texture_id: TextureId) -> UiState {
         UiState {
-
+            texture_id
         }
     }
 
     fn create_ui(&mut self, ui: &Ui) {
-        ui.window("Aa").build(|| {});
+        ui.dockspace_over_main_viewport();
+        ui.window("Render").build(|| {
+            let a = ui.push_style_var(StyleVar::FrameBorderSize(50.0));
+            Image::new(self.texture_id, mint::Vector2{ x: IMAGE_WIDTH, y: IMAGE_HEIGHT }).border_col([1.0;4]).build(ui);
+            a.pop()
+        });
     }
 }
 
@@ -32,20 +40,32 @@ pub struct ImState {
 impl ImState {
     pub fn new(window: &WinitWindow, gpu: &Gpu) -> ImState {
         let mut context = Context::create();
+        context.io_mut().config_flags |= ConfigFlags::DOCKING_ENABLE;
         let mut platform = WinitPlatform::init(&mut context);
         platform.attach_window(context.io_mut(), window, HiDpiMode::Default);
         let renderer_config = RendererConfig {
             texture_format: gpu.config.format,
             ..Default::default()
         };
-        let renderer = Renderer::new(&mut context, &gpu.device, &gpu.queue, renderer_config);
+        let mut renderer = Renderer::new(&mut context, &gpu.device, &gpu.queue, renderer_config);
 
-        let ui = UiState::new();
+        let texture = ImTexture::new(&gpu.device, &renderer, TextureConfig {
+            size: wgpu::Extent3d {
+                width: IMAGE_WIDTH as u32,
+                height: IMAGE_HEIGHT as u32,
+                ..Default::default()
+            },
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            ..Default::default()
+        });
+        let texture_id = renderer.textures.insert(texture);
+
+        let ui = UiState::new(texture_id);
         ImState {
             context,
             platform,
             renderer,
-            ui
+            ui,
         }
     }
 
@@ -86,5 +106,9 @@ impl ImState {
 
     pub fn handle_event(&mut self, event: &Event<()>, window: &WinitWindow) {
         self.platform.handle_event(self.context.io_mut(), window, event);
+    }
+
+    pub fn get_texture_view(&self) -> &TextureView {
+        self.renderer.textures.get(self.ui.texture_id).unwrap().view()
     }
 }

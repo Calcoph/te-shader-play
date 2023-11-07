@@ -95,6 +95,12 @@ impl Gpu {
             config
         }
     }
+
+    fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>) {
+        self.config.width = size.width;
+        self.config.height = size.height;
+        self.surface.configure(&self.device, &self.config);
+    }
 }
 
 pub struct State {
@@ -219,5 +225,9 @@ impl State {
     pub fn refresh_default_shader(&mut self) {
         let shader = std::fs::read_to_string(Path::new("shaders").join("shader.wgsl")).unwrap().into();
         self.swap_shader(shader);
+    }
+
+    pub(crate) fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>) {
+        self.gpu.resize(size)
     }
 }

@@ -24,6 +24,9 @@ fn handle_window_event(event: WindowEvent, window_target: &EventLoopWindowTarget
             }
         },
         WindowEvent::KeyboardInput { event, .. } => handle_keyboard(event, state),
+        WindowEvent::Resized(size) => {
+            state.resize(size)
+        },
         _ => ()
     }
 }

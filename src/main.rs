@@ -4,8 +4,8 @@ use winit::{event_loop::EventLoopBuilder, window::WindowBuilder, dpi};
 
 use crate::event_handling::run_event_loop;
 
-const SCREEN_WIDTH: u32 = 512;
-const SCREEN_HEIGHT: u32 = 512;
+const SCREEN_WIDTH: u32 = 768;
+const SCREEN_HEIGHT: u32 = 768;
 
 mod rendering;
 mod event_handling;
@@ -16,8 +16,7 @@ fn main() {
     let event_loop = EventLoopBuilder::default().build().expect("Couldn't create event loop");
 
     let wb = WindowBuilder::new()
-        .with_inner_size(dpi::LogicalSize::new(SCREEN_WIDTH, SCREEN_HEIGHT))
-        .with_resizable(false);
+        .with_inner_size(dpi::LogicalSize::new(SCREEN_WIDTH, SCREEN_HEIGHT));
 
     let window = wb.build(&event_loop).expect("Couldn't create window");
     window.set_window_level(winit::window::WindowLevel::AlwaysOnTop);
