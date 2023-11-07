@@ -10,6 +10,7 @@ const SCREEN_HEIGHT: u32 = 512;
 mod rendering;
 mod event_handling;
 mod state;
+mod imgui_state;
 
 fn main() {
     let event_loop = EventLoopBuilder::default().build().expect("Couldn't create event loop");
@@ -64,6 +65,6 @@ fn main() {
     );
 
     let gpu = Gpu::new(surface, device, queue, config);
-    let mut state = State::new(gpu);
+    let mut state = State::new(gpu, &window);
     event_loop.run(move |event, window_target| run_event_loop(event, window_target, &window, &mut state)).unwrap()
 }

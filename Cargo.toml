@@ -9,3 +9,11 @@ edition = "2021"
 wgpu = "0.18.0"
 winit = { version = "0.29.3", features = ["rwh_05"] }
 pollster = "0.3"
+imgui = "0.11"
+imgui-winit-support = "0.11"
+imgui-wgpu = "0.24"
+
+[patch.crates-io]
+imgui = { git = "https://github.com/Calcoph/imgui-rs", branch = "uptodate-winit" }
+imgui-winit-support = { git = "https://github.com/Calcoph/imgui-rs", branch = "uptodate-winit" }
+imgui-wgpu = { git = "https://github.com/Calcoph/imgui-wgpu-rs", rev = "53abff5" }
