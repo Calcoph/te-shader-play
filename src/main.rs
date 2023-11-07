@@ -16,7 +16,7 @@ fn main() {
     let event_loop = EventLoopBuilder::default().build().expect("Couldn't create event loop");
 
     let wb = WindowBuilder::new()
-        .with_inner_size(dpi::LogicalSize::new(SCREEN_WIDTH, SCREEN_HEIGHT))
+        .with_inner_size(dpi::PhysicalSize::new(SCREEN_WIDTH, SCREEN_HEIGHT))
         .with_resizable(false);
 
     let window = wb.build(&event_loop).expect("Couldn't create window");
