@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use imgui::{Context, Ui, ConfigFlags, Image, TextureId, StyleVar};
 use imgui_wgpu::{Renderer, RendererConfig, Texture as ImTexture, TextureConfig};
 use imgui_winit_support::{WinitPlatform, HiDpiMode};
@@ -9,24 +11,63 @@ use crate::state::Gpu;
 const IMAGE_HEIGHT: f32 = 512.0;
 const IMAGE_WIDTH: f32 = 512.0;
 
+pub enum Message {
+    ReloadShader,
+    LoadShader(String)
+}
+
 pub struct UiState {
-    pub texture_id: TextureId
+    pub texture_id: TextureId,
+    shader_name: String,
+    shader_exists: bool
 }
 
 impl UiState {
     fn new(texture_id: TextureId) -> UiState {
         UiState {
-            texture_id
+            texture_id,
+            shader_name: "shader.wgsl".to_string(),
+            shader_exists: true
         }
     }
 
-    fn create_ui(&mut self, ui: &Ui) {
+    fn create_ui(&mut self, ui: &Ui) -> Option<Message> {
+        let mut message = None;
         ui.dockspace_over_main_viewport();
         ui.window("Render").build(|| {
             let a = ui.push_style_var(StyleVar::FrameBorderSize(50.0));
             Image::new(self.texture_id, mint::Vector2{ x: IMAGE_WIDTH, y: IMAGE_HEIGHT }).border_col([1.0;4]).build(ui);
             a.pop()
         });
+
+        ui.window("Control").build(|| {
+            if ui.button("Reload shader") {
+                message = Some(Message::ReloadShader)
+            };
+            ui.separator();
+            if ui.input_text("Shader file", &mut self.shader_name).build() {
+                self.check_shader_exists()
+            };
+            ui.disabled(!self.shader_exists, || {
+                if ui.button("Load") {
+                    message = Some(Message::LoadShader(self.shader_name.clone()))
+                };
+            });
+            if !self.shader_exists {
+                ui.text(format!("shaders/{} doesn't exist", self.shader_name));
+            }
+        });
+
+        ui.window("Shader parameters").build(|| {
+
+        });
+
+        message
+    }
+
+    fn check_shader_exists(&mut self) {
+        let path = Path::new("shaders").join(&self.shader_name);
+        self.shader_exists = path.exists();
     }
 }
 
@@ -69,13 +110,13 @@ impl ImState {
         }
     }
 
-    pub fn render(&mut self, window: &WinitWindow, gpu: &Gpu, view: &TextureView) -> CommandEncoder {
+    pub fn render(&mut self, window: &WinitWindow, gpu: &Gpu, view: &TextureView) -> (CommandEncoder, Option<Message>) {
         self.platform
             .prepare_frame(self.context.io_mut(), window)
             .expect("Failed to prepare frame");
         let ui = self.context.frame();
 
-        self.ui.create_ui(&ui);
+        let message = self.ui.create_ui(&ui);
 
         let mut encoder = gpu
             .device
@@ -101,7 +142,7 @@ impl ImState {
                 .render(self.context.render(), &gpu.queue, &gpu.device, &mut render_pass)
                 .expect("Rendering failed");
         }
-        encoder
+        (encoder, message)
     }
 
     pub fn handle_event(&mut self, event: &Event<()>, window: &WinitWindow) {

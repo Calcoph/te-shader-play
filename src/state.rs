@@ -3,7 +3,7 @@ use std::{time::{Instant, Duration}, borrow::Cow, path::Path};
 use wgpu::{Device, Surface, Queue, SurfaceConfiguration, RenderPipeline, ShaderSource, ShaderModuleDescriptor, PipelineLayoutDescriptor, VertexState, PrimitiveState, PrimitiveTopology, FrontFace, PolygonMode, MultisampleState, FragmentState, ColorTargetState, BlendState, ColorWrites, RenderPipelineDescriptor, BindingType, ShaderStages, BufferBindingType, BindGroupLayoutEntry, BindGroupDescriptor, BindGroupEntry, BufferUsages, BindGroupLayoutDescriptor, BindGroup, BindGroupLayout, Buffer, util::{BufferInitDescriptor, DeviceExt}};
 use winit::window::Window;
 
-use crate::imgui_state::ImState;
+use crate::imgui_state::{ImState, Message};
 
 pub struct TimeKeeper {
     last_render_time: Instant,
@@ -107,12 +107,13 @@ pub struct State {
     pub gpu: Gpu,
     pub pipeline: RenderPipeline,
     pub time: TimeKeeper,
-    pub im_state: ImState
+    pub im_state: ImState,
+    current_shader: String
 }
 
 impl State {
     pub fn new(gpu: Gpu, window: &Window) -> State {
-        let shader = include_str!("../shaders/shader.wgsl").into();
+        let shader = std::fs::read_to_string(Path::new("shaders").join("shader.wgsl")).unwrap().into();
         let shader = gpu.device.create_shader_module(ShaderModuleDescriptor {
             label: None,
             source: ShaderSource::Wgsl(shader),
@@ -166,7 +167,8 @@ impl State {
             time,
             gpu,
             pipeline,
-            im_state
+            im_state,
+            current_shader: "shader.wgsl".into()
         }
     }
 
@@ -222,12 +224,22 @@ impl State {
         self.pipeline = pipeline;
     }
 
-    pub fn refresh_default_shader(&mut self) {
-        let shader = std::fs::read_to_string(Path::new("shaders").join("shader.wgsl")).unwrap().into();
+    pub fn refresh_shader(&mut self) {
+        let shader = std::fs::read_to_string(Path::new("shaders").join(&self.current_shader)).unwrap().into();
         self.swap_shader(shader);
     }
 
     pub(crate) fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>) {
         self.gpu.resize(size)
+    }
+
+    pub(crate) fn handle_message(&mut self, message: Message) {
+        match message {
+            crate::imgui_state::Message::ReloadShader => self.refresh_shader(),
+            crate::imgui_state::Message::LoadShader(shader) => {
+                self.current_shader = shader;
+                self.refresh_shader();
+            },
+        }
     }
 }

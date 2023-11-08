@@ -1,15 +1,16 @@
 use wgpu::{SurfaceTexture, CommandEncoderDescriptor, RenderPassDescriptor, RenderPassColorAttachment, Operations, LoadOp, Color, StoreOp, util::RenderEncoder, CommandEncoder, TextureView};
 use winit::window::Window;
 
-use crate::State;
+use crate::{State, imgui_state::Message};
 
-pub fn render(output: SurfaceTexture, state: &mut State, window: &Window) {
+#[must_use]
+pub fn render(output: SurfaceTexture, state: &mut State, window: &Window) -> Option<Message> {
     let view = output
         .texture
         .create_view(&wgpu::TextureViewDescriptor::default());
     let mut encoder = state.gpu.device.create_command_encoder(&CommandEncoderDescriptor { label: None });
     draw_image(state, &mut encoder, &view);
-    let imgui_encoder = state.im_state.render(window, &state.gpu, &view);
+    let (imgui_encoder, message) = state.im_state.render(window, &state.gpu, &view);
     let view = state.im_state.get_texture_view();
     draw_image(state, &mut encoder, view);
     state.gpu.queue.submit(vec![
@@ -17,6 +18,8 @@ pub fn render(output: SurfaceTexture, state: &mut State, window: &Window) {
         imgui_encoder.finish()
     ].into_iter());
     output.present();
+
+    message
 }
 
 fn draw_image(state: &State, encoder: &mut CommandEncoder, view: &TextureView) {

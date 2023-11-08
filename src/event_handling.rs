@@ -1,4 +1,4 @@
-use winit::{event::{Event, WindowEvent}, event_loop::{EventLoopWindowTarget, ControlFlow}, window::Window};
+use winit::{event::{Event, WindowEvent, ElementState}, event_loop::{EventLoopWindowTarget, ControlFlow}, window::Window};
 
 use crate::{State, rendering::render};
 
@@ -20,7 +20,10 @@ fn handle_window_event(event: WindowEvent, window_target: &EventLoopWindowTarget
         WindowEvent::RedrawRequested => {
             let dt = state.time.update_time(&state.gpu.queue);
             if let Ok(output) = state.gpu.surface.get_current_texture() {
-                render(output, state, window);
+                let message = render(output, state, window);
+                if let Some(message) = message {
+                    state.handle_message(message);
+                }
             }
         },
         WindowEvent::KeyboardInput { event, .. } => handle_keyboard(event, state),
@@ -32,9 +35,13 @@ fn handle_window_event(event: WindowEvent, window_target: &EventLoopWindowTarget
 }
 
 fn handle_keyboard(event: winit::event::KeyEvent, state: &mut State) {
+    if let ElementState::Released = event.state {
+        return
+    }
+
     match event.physical_key {
         winit::keyboard::PhysicalKey::Code(c) => match c {
-            winit::keyboard::KeyCode::KeyQ => state.refresh_default_shader(),
+            winit::keyboard::KeyCode::KeyQ => state.refresh_shader(),
             _ => (),
         },
         winit::keyboard::PhysicalKey::Unidentified(_) => (),
