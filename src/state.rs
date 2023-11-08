@@ -1,6 +1,6 @@
 use std::{time::{Instant, Duration}, borrow::Cow, path::Path};
 
-use wgpu::{Device, Surface, Queue, SurfaceConfiguration, RenderPipeline, ShaderSource, ShaderModuleDescriptor, PipelineLayoutDescriptor, VertexState, PrimitiveState, PrimitiveTopology, FrontFace, PolygonMode, MultisampleState, FragmentState, ColorTargetState, BlendState, ColorWrites, RenderPipelineDescriptor, BindingType, ShaderStages, BufferBindingType, BindGroupLayoutEntry, BindGroupDescriptor, BindGroupEntry, BufferUsages, BindGroupLayoutDescriptor, BindGroup, BindGroupLayout, Buffer, util::{BufferInitDescriptor, DeviceExt}};
+use wgpu::{Device, Surface, Queue, SurfaceConfiguration, RenderPipeline, ShaderSource, ShaderModuleDescriptor, PipelineLayoutDescriptor, VertexState, PrimitiveState, PrimitiveTopology, FrontFace, PolygonMode, MultisampleState, FragmentState, ColorTargetState, BlendState, ColorWrites, RenderPipelineDescriptor, BindingType, ShaderStages, BufferBindingType, BindGroupLayoutEntry, BindGroupDescriptor, BindGroupEntry, BufferUsages, BindGroupLayoutDescriptor, BindGroup, BindGroupLayout, Buffer, util::{BufferInitDescriptor, DeviceExt}, PipelineLayout};
 use winit::window::Window;
 
 use crate::imgui_state::{ImState, Message};
@@ -12,8 +12,8 @@ pub struct TimeKeeper {
 }
 
 pub struct BoundBuffer {
-    buffer: Buffer,
-    bg_layout: BindGroupLayout,
+    pub buffer: Buffer,
+    pub bg_layout: BindGroupLayout,
     pub bg: BindGroup
 }
 
@@ -108,15 +108,16 @@ pub struct State {
     pub pipeline: RenderPipeline,
     pub time: TimeKeeper,
     pub im_state: ImState,
+    current_shader_path: String,
     current_shader: String
 }
 
 impl State {
     pub fn new(gpu: Gpu, window: &Window) -> State {
-        let shader = std::fs::read_to_string(Path::new("shaders").join("shader.wgsl")).unwrap().into();
+        let current_shader = std::fs::read_to_string(Path::new("shaders").join("shader.wgsl")).unwrap();
         let shader = gpu.device.create_shader_module(ShaderModuleDescriptor {
             label: None,
-            source: ShaderSource::Wgsl(shader),
+            source: ShaderSource::Wgsl(current_shader.clone().into()),
         });
         let time = TimeKeeper::new(&gpu.device);
         let layout = gpu.device.create_pipeline_layout(&PipelineLayoutDescriptor {
@@ -168,23 +169,18 @@ impl State {
             gpu,
             pipeline,
             im_state,
-            current_shader: "shader.wgsl".into()
+            current_shader_path: "shader.wgsl".into(),
+            current_shader
         }
     }
 
-    fn swap_shader(&mut self, shader: Cow<'_, str>) {
+    fn refresh_pipeline(&mut self) {
         let shader = self.gpu.device.create_shader_module(ShaderModuleDescriptor {
             label: None,
-            source: ShaderSource::Wgsl(shader),
+            source: ShaderSource::Wgsl(self.current_shader.clone().into()),
         });
 
-        let layout = self.gpu.device.create_pipeline_layout(&PipelineLayoutDescriptor {
-                label: None,
-                bind_group_layouts: &[
-                    &self.time.millis_buffer.bg_layout
-                ],
-                push_constant_ranges: &[],
-            });
+        let layout = self.get_pipeline_layout();
 
         let pipeline = self.gpu.device.create_render_pipeline(&RenderPipelineDescriptor {
             label: None,
@@ -225,8 +221,9 @@ impl State {
     }
 
     pub fn refresh_shader(&mut self) {
-        let shader = std::fs::read_to_string(Path::new("shaders").join(&self.current_shader)).unwrap().into();
-        self.swap_shader(shader);
+        let shader = std::fs::read_to_string(Path::new("shaders").join(&self.current_shader_path)).unwrap();
+        self.current_shader = shader;
+        self.refresh_pipeline();
     }
 
     pub(crate) fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>) {
@@ -235,11 +232,32 @@ impl State {
 
     pub(crate) fn handle_message(&mut self, message: Message) {
         match message {
-            crate::imgui_state::Message::ReloadShader => self.refresh_shader(),
-            crate::imgui_state::Message::LoadShader(shader) => {
-                self.current_shader = shader;
+            Message::ReloadShader => self.refresh_shader(),
+            Message::LoadShader(shader) => {
+                self.current_shader_path = shader;
                 self.refresh_shader();
             },
+            Message::ReloadPipeline => self.refresh_pipeline(),
         }
+    }
+
+    fn get_pipeline_layout(&mut self) -> PipelineLayout {
+        let mut layouts = vec![
+            &self.time.millis_buffer.bg_layout
+        ];
+
+        for (_, int) in self.im_state.ui.inputs.ints.iter() {
+            layouts.push(&int.bg_layout)
+        }
+
+        for (_, float) in self.im_state.ui.inputs.floats.iter() {
+            layouts.push(&float.bg_layout)
+        }
+
+        self.gpu.device.create_pipeline_layout(&PipelineLayoutDescriptor {
+            label: None,
+            bind_group_layouts: &layouts,
+            push_constant_ranges: &[],
+        })
     }
 }

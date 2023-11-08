@@ -1,4 +1,4 @@
-use wgpu::{SurfaceTexture, CommandEncoderDescriptor, RenderPassDescriptor, RenderPassColorAttachment, Operations, LoadOp, Color, StoreOp, util::RenderEncoder, CommandEncoder, TextureView};
+use wgpu::{SurfaceTexture, CommandEncoderDescriptor, RenderPassDescriptor, RenderPassColorAttachment, Operations, LoadOp, Color, StoreOp, CommandEncoder, TextureView};
 use winit::window::Window;
 
 use crate::{State, imgui_state::Message};
@@ -44,5 +44,16 @@ fn draw_image(state: &State, encoder: &mut CommandEncoder, view: &TextureView) {
     });
     render_pass.set_pipeline(&state.pipeline);
     render_pass.set_bind_group(0, &state.time.millis_buffer.bg, &[]);
+    let mut index = 1;
+    for (_, int) in state.im_state.ui.inputs.ints.iter() {
+        render_pass.set_bind_group(index, &int.bg, &[]);
+        index += 1
+    };
+
+    for (_, float) in state.im_state.ui.inputs.floats.iter() {
+        render_pass.set_bind_group(index, &float.bg, &[]);
+        index += 1
+    };
+
     render_pass.draw(0..3, 0..2)
 }

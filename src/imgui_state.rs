@@ -1,25 +1,147 @@
-use std::path::Path;
+use std::{path::Path, os::unix::raw::dev_t};
 
 use imgui::{Context, Ui, ConfigFlags, Image, TextureId, StyleVar};
 use imgui_wgpu::{Renderer, RendererConfig, Texture as ImTexture, TextureConfig};
 use imgui_winit_support::{WinitPlatform, HiDpiMode};
-use wgpu::{TextureView, CommandEncoder};
+use wgpu::{TextureView, CommandEncoder, Device, util::{DeviceExt, BufferInitDescriptor}, BufferUsages, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BufferBindingType, ShaderStages, BindGroupDescriptor, BindGroupEntry};
 use winit::{window::Window as WinitWindow, event::Event};
 
-use crate::state::Gpu;
+use crate::state::{Gpu, BoundBuffer};
 
 const IMAGE_HEIGHT: f32 = 512.0;
 const IMAGE_WIDTH: f32 = 512.0;
 
 pub enum Message {
     ReloadShader,
-    LoadShader(String)
+    LoadShader(String),
+    ReloadPipeline
+}
+
+pub struct Inputs {
+    pub ints: Vec<(i32, BoundBuffer)>,
+    pub floats: Vec<(f32, BoundBuffer)>
+}
+
+impl Inputs {
+    fn new() -> Inputs {
+        Inputs {
+            ints: vec![],
+            floats: vec![],
+        }
+    }
+
+    fn add_int(&mut self, device: &Device) {
+        let new_int: i32 = 0;
+        let bb = Self::int_bound_buffer(device, new_int);
+
+        self.ints.push((
+            new_int,
+            bb
+        ))
+    }
+
+    fn add_float(&mut self, device: &Device) {
+        let new_float: f32 = 0.0;
+        let bb = Self::float_bound_buffer(device, new_float);
+
+        self.floats.push((
+            new_float,
+            bb
+        ))
+    }
+
+    fn int_bound_buffer(device: &Device, new_int: i32) -> BoundBuffer {
+        let buffer = device.create_buffer_init(&BufferInitDescriptor{
+            label: None,
+            contents: &new_int.to_le_bytes(),
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        });
+
+        let bg_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: None,
+            entries: &[
+                BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None
+                    },
+                    count: None,
+                }
+            ],
+        });
+
+        let bg = device.create_bind_group(&BindGroupDescriptor {
+            label: None,
+            layout: &bg_layout,
+            entries: &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: buffer.as_entire_binding(),
+                }
+            ],
+        });   
+
+        BoundBuffer { buffer, bg_layout, bg }
+    }
+
+    fn float_bound_buffer(device: &Device, new_float: f32) -> BoundBuffer {
+        let buffer = device.create_buffer_init(&BufferInitDescriptor{
+            label: None,
+            contents: &new_float.to_le_bytes(),
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        });
+
+        let bg_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: None,
+            entries: &[
+                BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None
+                    },
+                    count: None,
+                }
+            ],
+        });
+
+        let bg = device.create_bind_group(&BindGroupDescriptor {
+            label: None,
+            layout: &bg_layout,
+            entries: &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: buffer.as_entire_binding(),
+                }
+            ],
+        });   
+
+        BoundBuffer { buffer, bg_layout, bg }
+    }
+
+    fn edit_int(&mut self, index: usize, int: i32, device: &Device) {
+        let bb = Self::int_bound_buffer(device, int);
+
+        self.ints[index] = (int, bb);
+    }
+
+    fn edit_float(&mut self, index: usize, float: f32, device: &Device) {
+        let bb = Self::float_bound_buffer(device, float);
+
+        self.floats[index] = (float, bb);
+    }
 }
 
 pub struct UiState {
     pub texture_id: TextureId,
     shader_name: String,
-    shader_exists: bool
+    shader_exists: bool,
+    pub inputs: Inputs
 }
 
 impl UiState {
@@ -27,11 +149,12 @@ impl UiState {
         UiState {
             texture_id,
             shader_name: "shader.wgsl".to_string(),
-            shader_exists: true
+            shader_exists: true,
+            inputs: Inputs::new(),
         }
     }
 
-    fn create_ui(&mut self, ui: &Ui) -> Option<Message> {
+    fn create_ui(&mut self, ui: &Ui, device: &Device) -> Option<Message> {
         let mut message = None;
         ui.dockspace_over_main_viewport();
         ui.window("Render").build(|| {
@@ -59,7 +182,38 @@ impl UiState {
         });
 
         ui.window("Shader parameters").build(|| {
-
+            if ui.button("add int") {
+                self.inputs.add_int(device);
+                message = Some(Message::ReloadPipeline)
+            }
+            let mut bg_index = 1;
+            let mut edit_int = None;
+            for (index, (int, _)) in self.inputs.ints.iter_mut().enumerate() {
+                if ui.input_int(bg_index.to_string(), int).build() {
+                    edit_int = Some((index, *int));
+                }
+                bg_index += 1;
+            }
+            if let Some((index, int)) = edit_int {
+                self.inputs.edit_int(index, int, device);
+                message = Some(Message::ReloadPipeline)
+            }
+            ui.separator();
+            if ui.button("add float") {
+                self.inputs.add_float(device);
+                message = Some(Message::ReloadPipeline)
+            }
+            let mut edit_float = None;
+            for (index, (float, _)) in self.inputs.floats.iter_mut().enumerate() {
+                if ui.input_float(bg_index.to_string(), float).build() {
+                    edit_float = Some((index, *float))
+                }
+                bg_index += 1;
+            }
+            if let Some((index, float)) = edit_float {
+                self.inputs.edit_float(index, float, device);
+                message = Some(Message::ReloadPipeline)
+            }
         });
 
         message
@@ -75,7 +229,7 @@ pub struct ImState {
     context: Context,
     platform: WinitPlatform,
     renderer: Renderer,
-    ui: UiState
+    pub ui: UiState
 }
 
 impl ImState {
@@ -116,7 +270,7 @@ impl ImState {
             .expect("Failed to prepare frame");
         let ui = self.context.frame();
 
-        let message = self.ui.create_ui(&ui);
+        let message = self.ui.create_ui(&ui, &gpu.device);
 
         let mut encoder = gpu
             .device
