@@ -1,4 +1,4 @@
-use std::{time::{Instant, Duration}, borrow::Cow, path::Path};
+use std::{path::Path, time::{Duration, Instant}};
 
 use wgpu::{core::pipeline::CreateShaderModuleError, util::{BufferInitDescriptor, DeviceExt}, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendState, Buffer, BufferBindingType, BufferUsages, ColorTargetState, ColorWrites, Device, FragmentState, FrontFace, MultisampleState, PipelineLayout, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, Queue, RenderPipeline, RenderPipelineDescriptor, ShaderModule, ShaderModuleDescriptor, ShaderSource, ShaderStages, Surface, SurfaceConfiguration, VertexState};
 use winit::window::Window;
@@ -73,7 +73,7 @@ impl TimeKeeper {
             &self.millis_buffer.buffer,
             0,
             &(self.starting_time.elapsed().as_millis() as u32).to_le_bytes()
-        );
+        ).unwrap();
 
         dt
     }
@@ -103,13 +103,18 @@ impl<'surface> Gpu<'surface> {
     }
 }
 
+struct Shader {
+    contents: String,
+    shader: Option<ShaderModule>
+}
+
 pub struct State<'surface> {
     pub gpu: Gpu<'surface>,
     pub pipeline: RenderPipeline,
     pub time: TimeKeeper,
     pub im_state: ImState,
     current_shader_path: String,
-    current_shader: String
+    current_shader: Shader
 }
 
 impl<'surface> State<'surface> {
@@ -163,7 +168,10 @@ impl<'surface> State<'surface> {
         }).unwrap();
 
         let im_state = ImState::new(window, &gpu);
-
+        let current_shader = Shader {
+            contents: current_shader,
+            shader: None
+        };
         State {
             time,
             gpu,
@@ -174,62 +182,68 @@ impl<'surface> State<'surface> {
         }
     }
 
-    fn refresh_pipeline(&mut self, shader: ShaderModule) {
+    fn refresh_pipeline(&mut self) {
         let layout = self.get_pipeline_layout();
+        if let Some(shader) = &self.current_shader.shader {
+            let pipeline = self.gpu.device.create_render_pipeline(&RenderPipelineDescriptor {
+                label: None,
+                layout: Some(&layout),
+                vertex: VertexState {
+                    module: shader,
+                    entry_point: "vs_main",
+                    buffers: &[],
+                },
+                primitive: PrimitiveState {
+                    topology: PrimitiveTopology::TriangleList,
+                    strip_index_format: None,
+                    front_face: FrontFace::Ccw,
+                    cull_mode: None,
+                    unclipped_depth: false,
+                    polygon_mode: PolygonMode::Fill,
+                    conservative: false,
+                },
+                depth_stencil: None,
+                multisample: MultisampleState {
+                    count: 1,
+                    mask: !0,
+                    alpha_to_coverage_enabled: false,
+                },
+                fragment: Some(FragmentState {
+                    module: &shader,
+                    entry_point: "fs_main",
+                    targets: &[Some(ColorTargetState {
+                        format: self.gpu.config.format,
+                        blend: Some(BlendState::ALPHA_BLENDING),
+                        write_mask: ColorWrites::ALL,
+                    })],
+                }),
+                multiview: None,
+            }).unwrap();
 
-        let pipeline = self.gpu.device.create_render_pipeline(&RenderPipelineDescriptor {
-            label: None,
-            layout: Some(&layout),
-            vertex: VertexState {
-                module: &shader,
-                entry_point: "vs_main",
-                buffers: &[],
-            },
-            primitive: PrimitiveState {
-                topology: PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: FrontFace::Ccw,
-                cull_mode: None,
-                unclipped_depth: false,
-                polygon_mode: PolygonMode::Fill,
-                conservative: false,
-            },
-            depth_stencil: None,
-            multisample: MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            fragment: Some(FragmentState {
-                module: &shader,
-                entry_point: "fs_main",
-                targets: &[Some(ColorTargetState {
-                    format: self.gpu.config.format,
-                    blend: Some(BlendState::ALPHA_BLENDING),
-                    write_mask: ColorWrites::ALL,
-                })],
-            }),
-            multiview: None,
-        }).unwrap();
-
-        self.pipeline = pipeline;
+            self.pipeline = pipeline;
+        } else {
+            println!("Pipeline wasn't refreshed because there is no loaded shader")
+        }
     }
 
     pub fn refresh_shader(&mut self) {
-        let shader = std::fs::read_to_string(Path::new("shaders").join(&self.current_shader_path)).unwrap();
-        self.current_shader = shader;
+        let shader_contents = std::fs::read_to_string(Path::new("shaders").join(&self.current_shader_path)).unwrap();
         match self.gpu.device.create_shader_module(ShaderModuleDescriptor {
             label: None,
-            source: ShaderSource::Wgsl(self.current_shader.clone().into()),
+            source: ShaderSource::Wgsl(shader_contents.clone().into()),
         }) {
-            Ok(shader) => self.refresh_pipeline(shader),
+            Ok(shader) => {
+                self.current_shader.contents = shader_contents;
+                self.current_shader.shader = Some(shader);
+                self.refresh_pipeline()
+            },
             Err(err) => match err {
                 CreateShaderModuleError::Parsing(_) => todo!(),
                 CreateShaderModuleError::Generation => todo!(),
                 CreateShaderModuleError::Device(_) => todo!(),
                 CreateShaderModuleError::Validation(_) => todo!(),
                 CreateShaderModuleError::MissingFeatures(_) => todo!(),
-                CreateShaderModuleError::InvalidGroupIndex { bind, group, limit } => todo!(),
+                CreateShaderModuleError::InvalidGroupIndex { .. } => todo!(),
                 _ => todo!(),
             },
         };

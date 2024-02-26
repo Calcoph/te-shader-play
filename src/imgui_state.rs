@@ -3,7 +3,7 @@ use std::path::Path;
 use imgui::{Context, Ui, ConfigFlags, Image, TextureId, StyleVar};
 use imgui_wgpu::{Renderer, RendererConfig, Texture as ImTexture, TextureConfig};
 use imgui_winit_support::{WinitPlatform, HiDpiMode};
-use wgpu::{TextureView, CommandEncoder, Device, util::{DeviceExt, BufferInitDescriptor}, BufferUsages, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BufferBindingType, ShaderStages, BindGroupDescriptor, BindGroupEntry};
+use wgpu::{TextureView, CommandEncoder, Device, util::{DeviceExt, BufferInitDescriptor}, BufferUsages, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BufferBindingType, ShaderStages, BindGroupDescriptor, BindGroupEntry};
 use winit::{window::Window as WinitWindow, event::Event};
 
 use crate::state::{Gpu, BoundBuffer};
