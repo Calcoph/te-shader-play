@@ -3,7 +3,7 @@ use std::path::Path;
 use imgui::{Context, Ui, ConfigFlags, Image, TextureId, StyleVar};
 use imgui_wgpu::{Renderer, RendererConfig, Texture as ImTexture, TextureConfig};
 use imgui_winit_support::{WinitPlatform, HiDpiMode};
-use wgpu::{TextureView, CommandEncoder, Device, util::{DeviceExt, BufferInitDescriptor}, BufferUsages, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BufferBindingType, ShaderStages, BindGroupDescriptor, BindGroupEntry};
+use wgpu::{core::pipeline::ShaderError, naga::front::wgsl::ParseError, util::{BufferInitDescriptor, DeviceExt}, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BufferBindingType, BufferUsages, CommandEncoder, Device, ShaderStages, TextureView};
 use winit::{window::Window as WinitWindow, event::Event};
 
 use crate::state::{Gpu, BoundBuffer};
@@ -141,7 +141,9 @@ pub struct UiState {
     pub texture_id: TextureId,
     shader_name: String,
     shader_exists: bool,
-    pub inputs: Inputs
+    pub inputs: Inputs,
+    errors: Vec<String>,
+    show_errors: bool
 }
 
 impl UiState {
@@ -151,6 +153,8 @@ impl UiState {
             shader_name: "shader.wgsl".to_string(),
             shader_exists: true,
             inputs: Inputs::new(),
+            errors: vec![],
+            show_errors: false
         }
     }
 
@@ -216,6 +220,13 @@ impl UiState {
             }
         });
 
+        ui.window("Errors").focused(self.show_errors).build(|| {
+            self.show_errors = false;
+            for error in self.errors.iter() {
+                ui.text_wrapped(error)
+            }
+        });
+
         message
     }
 
@@ -229,7 +240,7 @@ pub struct ImState {
     context: Context,
     platform: WinitPlatform,
     renderer: Renderer,
-    pub ui: UiState
+    pub ui: UiState,
 }
 
 impl ImState {
@@ -305,5 +316,17 @@ impl ImState {
 
     pub fn get_texture_view(&self) -> &TextureView {
         self.renderer.textures.get(self.ui.texture_id).unwrap().view()
+    }
+
+    pub(crate) fn destroy_errors(&mut self) {
+        self.ui.errors = Vec::new();
+        self.ui.show_errors = false;
+    }
+
+    pub(crate) fn show_parse_err(&mut self, parse_err: ShaderError<ParseError>) {
+        self.ui.show_errors = true;
+        self.ui.errors = vec![
+            parse_err.to_string()
+        ];
     }
 }

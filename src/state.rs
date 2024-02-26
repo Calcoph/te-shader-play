@@ -105,7 +105,7 @@ impl<'surface> Gpu<'surface> {
 
 struct Shader {
     contents: String,
-    shader: Option<ShaderModule>
+    shader: ShaderModule
 }
 
 pub struct State<'surface> {
@@ -170,7 +170,7 @@ impl<'surface> State<'surface> {
         let im_state = ImState::new(window, &gpu);
         let current_shader = Shader {
             contents: current_shader,
-            shader: None
+            shader: shader
         };
         State {
             time,
@@ -184,46 +184,42 @@ impl<'surface> State<'surface> {
 
     fn refresh_pipeline(&mut self) {
         let layout = self.get_pipeline_layout();
-        if let Some(shader) = &self.current_shader.shader {
-            let pipeline = self.gpu.device.create_render_pipeline(&RenderPipelineDescriptor {
-                label: None,
-                layout: Some(&layout),
-                vertex: VertexState {
-                    module: shader,
-                    entry_point: "vs_main",
-                    buffers: &[],
-                },
-                primitive: PrimitiveState {
-                    topology: PrimitiveTopology::TriangleList,
-                    strip_index_format: None,
-                    front_face: FrontFace::Ccw,
-                    cull_mode: None,
-                    unclipped_depth: false,
-                    polygon_mode: PolygonMode::Fill,
-                    conservative: false,
-                },
-                depth_stencil: None,
-                multisample: MultisampleState {
-                    count: 1,
-                    mask: !0,
-                    alpha_to_coverage_enabled: false,
-                },
-                fragment: Some(FragmentState {
-                    module: &shader,
-                    entry_point: "fs_main",
-                    targets: &[Some(ColorTargetState {
-                        format: self.gpu.config.format,
-                        blend: Some(BlendState::ALPHA_BLENDING),
-                        write_mask: ColorWrites::ALL,
-                    })],
-                }),
-                multiview: None,
-            }).unwrap();
+        let pipeline = self.gpu.device.create_render_pipeline(&RenderPipelineDescriptor {
+            label: None,
+            layout: Some(&layout),
+            vertex: VertexState {
+                module: &self.current_shader.shader,
+                entry_point: "vs_main",
+                buffers: &[],
+            },
+            primitive: PrimitiveState {
+                topology: PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: FrontFace::Ccw,
+                cull_mode: None,
+                unclipped_depth: false,
+                polygon_mode: PolygonMode::Fill,
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            fragment: Some(FragmentState {
+                module: &self.current_shader.shader,
+                entry_point: "fs_main",
+                targets: &[Some(ColorTargetState {
+                    format: self.gpu.config.format,
+                    blend: Some(BlendState::ALPHA_BLENDING),
+                    write_mask: ColorWrites::ALL,
+                })],
+            }),
+            multiview: None,
+        }).unwrap();
 
-            self.pipeline = pipeline;
-        } else {
-            println!("Pipeline wasn't refreshed because there is no loaded shader")
-        }
+        self.pipeline = pipeline;
     }
 
     pub fn refresh_shader(&mut self) {
@@ -233,19 +229,12 @@ impl<'surface> State<'surface> {
             source: ShaderSource::Wgsl(shader_contents.clone().into()),
         }) {
             Ok(shader) => {
+                self.im_state.destroy_errors();
                 self.current_shader.contents = shader_contents;
-                self.current_shader.shader = Some(shader);
+                self.current_shader.shader = shader;
                 self.refresh_pipeline()
             },
-            Err(err) => match err {
-                CreateShaderModuleError::Parsing(_) => todo!(),
-                CreateShaderModuleError::Generation => todo!(),
-                CreateShaderModuleError::Device(_) => todo!(),
-                CreateShaderModuleError::Validation(_) => todo!(),
-                CreateShaderModuleError::MissingFeatures(_) => todo!(),
-                CreateShaderModuleError::InvalidGroupIndex { .. } => todo!(),
-                _ => todo!(),
-            },
+            Err(err) => self.handle_shader_err(err),
         };
     }
 
@@ -282,5 +271,19 @@ impl<'surface> State<'surface> {
             bind_group_layouts: &layouts,
             push_constant_ranges: &[],
         }).unwrap()
+    }
+
+    fn handle_shader_err(&mut self, err: CreateShaderModuleError) {
+        match err {
+            CreateShaderModuleError::Parsing(parse_err) => {
+                self.im_state.show_parse_err(parse_err);
+            },
+            CreateShaderModuleError::Generation => todo!(),
+            CreateShaderModuleError::Device(_) => todo!(),
+            CreateShaderModuleError::Validation(_) => todo!(),
+            CreateShaderModuleError::MissingFeatures(_) => todo!(),
+            CreateShaderModuleError::InvalidGroupIndex { bind, group, limit } => todo!(),
+            _ => todo!(),
+        }
     }
 }
