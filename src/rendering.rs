@@ -7,15 +7,16 @@ use crate::{State, imgui_state::Message};
 pub fn render(output: SurfaceTexture, state: &mut State, window: &Window) -> Option<Message> {
     let view = output
         .texture
-        .create_view(&wgpu::TextureViewDescriptor::default());
-    let mut encoder = state.gpu.device.create_command_encoder(&CommandEncoderDescriptor { label: None });
+        .create_view(&wgpu::TextureViewDescriptor::default())
+        .unwrap();
+    let mut encoder = state.gpu.device.create_command_encoder(&CommandEncoderDescriptor { label: None }).unwrap();
     draw_image(state, &mut encoder, &view);
     let (imgui_encoder, message) = state.im_state.render(window, &state.gpu, &view);
     let view = state.im_state.get_texture_view();
     draw_image(state, &mut encoder, view);
     state.gpu.queue.submit(vec![
-        encoder.finish(),
-        imgui_encoder.finish()
+        encoder.finish().unwrap(),
+        imgui_encoder.finish().unwrap()
     ].into_iter());
     output.present();
 

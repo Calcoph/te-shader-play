@@ -1,6 +1,6 @@
 use std::{time::{Instant, Duration}, borrow::Cow, path::Path};
 
-use wgpu::{Device, Surface, Queue, SurfaceConfiguration, RenderPipeline, ShaderSource, ShaderModuleDescriptor, PipelineLayoutDescriptor, VertexState, PrimitiveState, PrimitiveTopology, FrontFace, PolygonMode, MultisampleState, FragmentState, ColorTargetState, BlendState, ColorWrites, RenderPipelineDescriptor, BindingType, ShaderStages, BufferBindingType, BindGroupLayoutEntry, BindGroupDescriptor, BindGroupEntry, BufferUsages, BindGroupLayoutDescriptor, BindGroup, BindGroupLayout, Buffer, util::{BufferInitDescriptor, DeviceExt}, PipelineLayout};
+use wgpu::{core::pipeline::CreateShaderModuleError, util::{BufferInitDescriptor, DeviceExt}, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendState, Buffer, BufferBindingType, BufferUsages, ColorTargetState, ColorWrites, Device, FragmentState, FrontFace, MultisampleState, PipelineLayout, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, Queue, RenderPipeline, RenderPipelineDescriptor, ShaderModule, ShaderModuleDescriptor, ShaderSource, ShaderStages, Surface, SurfaceConfiguration, VertexState};
 use winit::window::Window;
 
 use crate::imgui_state::{ImState, Message};
@@ -24,7 +24,7 @@ impl TimeKeeper {
             label: None,
             contents: &(now.elapsed().as_millis() as u32).to_le_bytes(),
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-        });
+        }).unwrap();
 
         let bg_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
             label: None,
@@ -40,7 +40,7 @@ impl TimeKeeper {
                     count: None,
                 }
             ],
-        });
+        }).unwrap();
 
         let bg = device.create_bind_group(&BindGroupDescriptor {
             label: None,
@@ -51,7 +51,7 @@ impl TimeKeeper {
                     resource: millis_uniform.as_entire_binding(),
                 }
             ],
-        });
+        }).unwrap();
 
         TimeKeeper {
             last_render_time: now,
@@ -79,15 +79,15 @@ impl TimeKeeper {
     }
 }
 
-pub struct Gpu {
-    pub surface: Surface,
+pub struct Gpu<'surface> {
+    pub surface: Surface<'surface>,
     pub device: Device,
     pub queue: Queue,
     pub config: SurfaceConfiguration
 }
 
-impl Gpu {
-    pub fn new(surface: Surface, device: Device, queue: Queue, config: SurfaceConfiguration) -> Gpu {
+impl<'surface> Gpu<'surface> {
+    pub fn new(surface: Surface<'_>, device: Device, queue: Queue, config: SurfaceConfiguration) -> Gpu<'_> {
         Gpu {
             surface,
             device,
@@ -103,8 +103,8 @@ impl Gpu {
     }
 }
 
-pub struct State {
-    pub gpu: Gpu,
+pub struct State<'surface> {
+    pub gpu: Gpu<'surface>,
     pub pipeline: RenderPipeline,
     pub time: TimeKeeper,
     pub im_state: ImState,
@@ -112,13 +112,13 @@ pub struct State {
     current_shader: String
 }
 
-impl State {
-    pub fn new(gpu: Gpu, window: &Window) -> State {
+impl<'surface> State<'surface> {
+    pub fn new(gpu: Gpu<'surface>, window: &Window) -> State<'surface> {
         let current_shader = std::fs::read_to_string(Path::new("shaders").join("shader.wgsl")).unwrap();
         let shader = gpu.device.create_shader_module(ShaderModuleDescriptor {
             label: None,
             source: ShaderSource::Wgsl(current_shader.clone().into()),
-        });
+        }).unwrap();
         let time = TimeKeeper::new(&gpu.device);
         let layout = gpu.device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: None,
@@ -126,7 +126,7 @@ impl State {
                 &time.millis_buffer.bg_layout
             ],
             push_constant_ranges: &[],
-        });
+        }).unwrap();
         let pipeline = gpu.device.create_render_pipeline(&RenderPipelineDescriptor {
             label: None,
             layout: Some(&layout),
@@ -160,7 +160,7 @@ impl State {
                 })],
             }),
             multiview: None,
-        });
+        }).unwrap();
 
         let im_state = ImState::new(window, &gpu);
 
@@ -174,12 +174,7 @@ impl State {
         }
     }
 
-    fn refresh_pipeline(&mut self) {
-        let shader = self.gpu.device.create_shader_module(ShaderModuleDescriptor {
-            label: None,
-            source: ShaderSource::Wgsl(self.current_shader.clone().into()),
-        });
-
+    fn refresh_pipeline(&mut self, shader: ShaderModule) {
         let layout = self.get_pipeline_layout();
 
         let pipeline = self.gpu.device.create_render_pipeline(&RenderPipelineDescriptor {
@@ -215,7 +210,7 @@ impl State {
                 })],
             }),
             multiview: None,
-        });
+        }).unwrap();
 
         self.pipeline = pipeline;
     }
@@ -223,7 +218,21 @@ impl State {
     pub fn refresh_shader(&mut self) {
         let shader = std::fs::read_to_string(Path::new("shaders").join(&self.current_shader_path)).unwrap();
         self.current_shader = shader;
-        self.refresh_pipeline();
+        match self.gpu.device.create_shader_module(ShaderModuleDescriptor {
+            label: None,
+            source: ShaderSource::Wgsl(self.current_shader.clone().into()),
+        }) {
+            Ok(shader) => self.refresh_pipeline(shader),
+            Err(err) => match err {
+                CreateShaderModuleError::Parsing(_) => todo!(),
+                CreateShaderModuleError::Generation => todo!(),
+                CreateShaderModuleError::Device(_) => todo!(),
+                CreateShaderModuleError::Validation(_) => todo!(),
+                CreateShaderModuleError::MissingFeatures(_) => todo!(),
+                CreateShaderModuleError::InvalidGroupIndex { bind, group, limit } => todo!(),
+                _ => todo!(),
+            },
+        };
     }
 
     pub(crate) fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>) {
@@ -258,6 +267,6 @@ impl State {
             label: None,
             bind_group_layouts: &layouts,
             push_constant_ranges: &[],
-        })
+        }).unwrap()
     }
 }

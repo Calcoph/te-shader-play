@@ -1,4 +1,4 @@
-use std::{path::Path, os::unix::raw::dev_t};
+use std::path::Path;
 
 use imgui::{Context, Ui, ConfigFlags, Image, TextureId, StyleVar};
 use imgui_wgpu::{Renderer, RendererConfig, Texture as ImTexture, TextureConfig};
@@ -55,7 +55,7 @@ impl Inputs {
             label: None,
             contents: &new_int.to_le_bytes(),
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-        });
+        }).unwrap();
 
         let bg_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
             label: None,
@@ -71,7 +71,7 @@ impl Inputs {
                     count: None,
                 }
             ],
-        });
+        }).unwrap();
 
         let bg = device.create_bind_group(&BindGroupDescriptor {
             label: None,
@@ -82,7 +82,7 @@ impl Inputs {
                     resource: buffer.as_entire_binding(),
                 }
             ],
-        });   
+        }).unwrap();
 
         BoundBuffer { buffer, bg_layout, bg }
     }
@@ -92,7 +92,7 @@ impl Inputs {
             label: None,
             contents: &new_float.to_le_bytes(),
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-        });
+        }).unwrap();
 
         let bg_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
             label: None,
@@ -108,7 +108,7 @@ impl Inputs {
                     count: None,
                 }
             ],
-        });
+        }).unwrap();
 
         let bg = device.create_bind_group(&BindGroupDescriptor {
             label: None,
@@ -119,7 +119,7 @@ impl Inputs {
                     resource: buffer.as_entire_binding(),
                 }
             ],
-        });   
+        }).unwrap();
 
         BoundBuffer { buffer, bg_layout, bg }
     }
@@ -276,7 +276,7 @@ impl ImState {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("ImGui Render Encoder"),
-            });
+            }).unwrap();
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,

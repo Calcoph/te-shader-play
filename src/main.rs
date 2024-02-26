@@ -27,11 +27,8 @@ fn main() {
         gles_minor_version: Gles3MinorVersion::Automatic,
     });
 
-    let surface = unsafe {
-         instance
-            .create_surface(&window)
-            .expect("Unable to create surface")
-    };
+    let surface = instance.create_surface(&window)
+            .expect("Unable to create surface");
 
     let adapter = pollster::block_on(instance.request_adapter(&RequestAdapterOptions {
         power_preference: PowerPreference::default(),
@@ -42,8 +39,8 @@ fn main() {
     let (device, queue) = pollster::block_on(adapter.request_device(
         &DeviceDescriptor {
             label: None,
-            features: Features::default(),
-            limits: Limits::downlevel_webgl2_defaults()
+            required_features: Features::default(),
+            required_limits: Limits::downlevel_webgl2_defaults()
         },
         None
     )).expect("Unable to request device");
@@ -56,6 +53,7 @@ fn main() {
         present_mode: PresentMode::Fifo,
         alpha_mode: CompositeAlphaMode::Auto,
         view_formats: vec![surface.get_capabilities(&adapter).formats[0]],
+        desired_maximum_frame_latency: 2
     };
 
     surface.configure(
@@ -65,5 +63,5 @@ fn main() {
 
     let gpu = Gpu::new(surface, device, queue, config);
     let mut state = State::new(gpu, &window);
-    event_loop.run(move |event, window_target| run_event_loop(event, window_target, &window, &mut state)).unwrap()
+    event_loop.run(|event, window_target| run_event_loop(event, window_target, &window, &mut state)).unwrap()
 }
