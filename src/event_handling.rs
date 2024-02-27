@@ -18,12 +18,9 @@ fn handle_window_event(event: WindowEvent, window_target: &EventLoopWindowTarget
     match event {
         WindowEvent::CloseRequested => window_target.exit(),
         WindowEvent::RedrawRequested => {
-            let dt = state.time.update_time(&state.gpu.queue);
+            let _dt = state.time.update_time(&state.gpu.queue, &mut state.im_state.ui.inputs);
             if let Ok(output) = state.gpu.surface.get_current_texture() {
-                let message = render(output, state, window);
-                if let Some(message) = message {
-                    state.handle_message(message);
-                }
+                render(output, state, window);
             }
         },
         WindowEvent::KeyboardInput { event, .. } => handle_keyboard(event, state),

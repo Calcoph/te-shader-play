@@ -1,10 +1,9 @@
 use wgpu::{SurfaceTexture, CommandEncoderDescriptor, RenderPassDescriptor, RenderPassColorAttachment, Operations, LoadOp, Color, StoreOp, CommandEncoder, TextureView};
 use winit::window::Window;
 
-use crate::{State, imgui_state::Message};
+use crate::State;
 
-#[must_use]
-pub fn render(output: SurfaceTexture, state: &mut State, window: &Window) -> Option<Message> {
+pub fn render(output: SurfaceTexture, state: &mut State, window: &Window) {
     let view = output
         .texture
         .create_view(&wgpu::TextureViewDescriptor::default())
@@ -12,15 +11,16 @@ pub fn render(output: SurfaceTexture, state: &mut State, window: &Window) -> Opt
     let mut encoder = state.gpu.device.create_command_encoder(&CommandEncoderDescriptor { label: None }).unwrap();
     draw_image(state, &mut encoder, &view);
     let (imgui_encoder, message) = state.im_state.render(window, &state.gpu, &view);
+    if let Some(message) = message {
+        state.handle_message(message);
+    }
     let view = state.im_state.get_texture_view();
-    draw_image(state, &mut encoder, view);
+    draw_image(state, &mut encoder, &view);
     state.gpu.queue.submit(vec![
         encoder.finish().unwrap(),
         imgui_encoder.finish().unwrap()
     ].into_iter());
     output.present();
-
-    message
 }
 
 fn draw_image(state: &State, encoder: &mut CommandEncoder, view: &TextureView) {
@@ -44,17 +44,9 @@ fn draw_image(state: &State, encoder: &mut CommandEncoder, view: &TextureView) {
         occlusion_query_set: None,
     });
     render_pass.set_pipeline(&state.pipeline);
-    render_pass.set_bind_group(0, &state.time.millis_buffer.bg, &[]);
-    let mut index = 1;
-    for (_, int) in state.im_state.ui.inputs.ints.iter() {
-        render_pass.set_bind_group(index, &int.bg, &[]);
-        index += 1
-    };
-
-    for (_, float) in state.im_state.ui.inputs.floats.iter() {
-        render_pass.set_bind_group(index, &float.bg, &[]);
-        index += 1
-    };
+    for (g_index, group) in state.im_state.ui.inputs.groups.iter().enumerate() {
+        render_pass.set_bind_group(g_index as u32, &group.bind_group, &[]);
+    }
 
     render_pass.draw(0..3, 0..2)
 }
