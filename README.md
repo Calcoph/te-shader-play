@@ -15,10 +15,19 @@ To use the parameters in the shaders you have to declare them like:
 var<uniform> my_shader_parameter: u32;
 ```
 
-Supported parameter types are:
-* u32
-* i32
-* f32
+|type|supported|
+|-|-|
+|bool|🔴|
+|u32|🟢|
+|i32|🟢|
+|f16|🔴|
+|f32|🟢|
+|atomic\<T\>|🔴|
+|vecN\<T\>|🔴|
+|matCxR\<T\>|🔴|
+|array\<E,N\>|🔴|
+|array\<E\>|🔴|
+|struct|🔴|
 
 A time parameter is located at `@group(0) binding(0)`, which is a u32. It represents the milliseconds elapsed since the program started.
 
