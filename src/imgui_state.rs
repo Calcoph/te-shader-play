@@ -63,17 +63,20 @@ impl<'a> Into<Cow<'a, str>> for &'a UniformType {
 }
 
 impl UniformValue {
-    fn show_editor(&mut self, ui: &Ui, group_index: usize, binding_index: usize) -> Option<UniformEditEvent> {
+    fn show_editor(&mut self, ui: &Ui, group_index: usize, binding_index: usize, val_name: &mut String) -> Option<UniformEditEvent> {
         const TYPES: &[UniformType] = &[
             UniformType::U32,
             UniformType::I32,
             UniformType::F32,
         ];
         const COMBO_WIDTH: f32 = 50.0;
+        const VAR_NAME_WIDTH: f32 = 150.0;
 
-        let show_primitive_selector = |message: &mut Option<UniformEditEvent>, type_index| {
+        let show_primitive_selector = |message: &mut Option<UniformEditEvent>, type_index, val_name: &mut String| {
             ui.text(format!("({binding_index})"));
             ui.same_line();
+            ui.set_next_item_width(VAR_NAME_WIDTH);
+            ui.input_text(format!("##name_edit{group_index}_{binding_index}"), val_name).build();
             ui.set_next_item_width(COMBO_WIDTH);
             let mut selection = type_index;
             if ui.combo(
@@ -95,21 +98,21 @@ impl UniformValue {
                 BuiltinValue::Time => ui.text(format!("({binding_index}) Time")),
             },
             UniformValue::U32(v) => {
-                show_primitive_selector(&mut message, 0);
+                show_primitive_selector(&mut message, 0, val_name);
                 ui.same_line();
                 if ui.input_scalar(format!("##editor{group_index}_{binding_index}"), v).build() {
                     message = Some(UniformEditEvent::EditU32(group_index, binding_index, *v));
                 }
             },
             UniformValue::I32(v) => {
-                show_primitive_selector(&mut message, 1);
+                show_primitive_selector(&mut message, 1, val_name);
                 ui.same_line();
                 if ui.input_int(format!("##editor{group_index}_{binding_index}"), v).build() {
                     message = Some(UniformEditEvent::EditI32(group_index, binding_index, *v))
                 }
             },
             UniformValue::F32(v) => {
-                show_primitive_selector(&mut message, 2);
+                show_primitive_selector(&mut message, 2, val_name);
                 ui.same_line();
                 if ui.input_float(format!("##editor{group_index}_{binding_index}"), v).build() {
                     message = Some(UniformEditEvent::EditF32(group_index, binding_index, *v))
@@ -124,6 +127,7 @@ impl UniformValue {
 struct UniformBinding {
     pub buffer: Buffer,
     value: UniformValue,
+    name: String
 }
 impl UniformBinding {
     fn bgl_entry(&self, index: u32) -> BindGroupLayoutEntry {
@@ -165,6 +169,7 @@ impl UniformBinding {
         UniformBinding {
             buffer: buffer,
             value,
+            name: "unnamed".to_string()
         }
     }
 
@@ -226,6 +231,10 @@ impl UniformBinding {
         };
 
         self.value = new_value
+    }
+
+    fn show_editor(&mut self, ui: &Ui, group_index: usize, binding_index: usize) -> Option<UniformEditEvent> {
+        self.value.show_editor(ui, group_index, binding_index, &mut self.name)
     }
 }
 
@@ -453,9 +462,10 @@ impl UiState {
             for (group_index, group) in self.inputs.groups.iter_mut().enumerate() {
                 if ui.collapsing_header(format!("Binding group {group_index}"), TreeNodeFlags::empty()) {
                     for (binding_index, uniform) in group.bindings.iter_mut().enumerate() {
-                        if let Some(event) = uniform.value.show_editor(ui, group_index, binding_index) {
+                        if let Some(event) = uniform.show_editor(ui, group_index, binding_index) {
                             edit_event = Some(event);
                         }
+                        ui.separator();
                     }
                     if ui.button(format!("Add u32##add_u32{group_index}")) {
                         edit_event = Some(UniformEditEvent::AddU32(group_index))
