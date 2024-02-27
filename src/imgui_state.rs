@@ -95,7 +95,7 @@ impl UniformValue {
         let mut message = None;
         match self {
             UniformValue::BuiltIn(builtin) => match builtin {
-                BuiltinValue::Time => ui.text(format!("({binding_index}) Time")),
+                BuiltinValue::Time => ui.text(format!("({binding_index}) Time (u32)")),
             },
             UniformValue::U32(v) => {
                 show_primitive_selector(&mut message, 0, val_name);
