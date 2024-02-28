@@ -141,9 +141,9 @@ impl UniformBinding {
             None,None,None, // sizes 5..=7 don't have any default value
             Some(UniformType::Vec(VecType::Vec2(ScalarType::F32))), // Size 8
             None,None,None, // sizes 9..=11 don't have any default value
-            Some(UniformType::Vec(VecType::Vec2(ScalarType::F32))), // Size 12
+            Some(UniformType::Vec(VecType::Vec3(ScalarType::F32))), // Size 12
             None,None,None, // sizes 13..=15 don't have any default value
-            Some(UniformType::Vec(VecType::Vec2(ScalarType::F32))), // Size 16
+            Some(UniformType::Vec(VecType::Vec4(ScalarType::F32))), // Size 16
             // Sizes 17..infinity don't have any default value
         ];
         self.change_type(DEFAULT_SIZEN_TYPE.get(new_size as usize).unwrap().unwrap(), queue, device)
