@@ -1,6 +1,6 @@
-use std::{borrow::Cow, path::Path, time::{Duration, Instant}};
+use std::{any::Any, borrow::Cow, error::Error, path::Path, time::{Duration, Instant}};
 
-use wgpu::{core::{pipeline::{CreateRenderPipelineError, CreateShaderModuleError}, validation::{BindingError, StageError}}, BlendState, ColorTargetState, ColorWrites, Device, FragmentState, FrontFace, MultisampleState, PipelineLayout, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, Queue, RenderPipeline, RenderPipelineDescriptor, ShaderModule, ShaderModuleDescriptor, ShaderSource, ShaderStages, Surface, SurfaceConfiguration, VertexState};
+use wgpu::{core::{binding_model::LateMinBufferBindingSizeMismatch, command::{DrawError, PassErrorScope, RenderPassError, RenderPassErrorInner}, pipeline::{CreateRenderPipelineError, CreateShaderModuleError}, validation::{BindingError, StageError}}, naga::compact, BlendState, ColorTargetState, ColorWrites, Device, FragmentState, FrontFace, MultisampleState, PipelineLayout, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, Queue, RenderPipeline, RenderPipelineDescriptor, ShaderModule, ShaderModuleDescriptor, ShaderSource, ShaderStages, Surface, SurfaceConfiguration, VertexState};
 use winit::window::Window;
 
 use crate::imgui_state::{ImState, Message, Uniforms};
@@ -304,6 +304,30 @@ fn fs_main() -> @location(0) vec4<f32> {
     fn handle_shader_err(&mut self, err: CreateShaderModuleError) {
         match err {
             e => self.im_state.show_crate_shader_err(e),
+        }
+    }
+
+    pub(crate) fn handle_render_pass_err(&mut self, err: &RenderPassErrorInner) -> Option<Message> {
+        match err {
+            RenderPassErrorInner::Draw(err) => match err {
+                DrawError::BindingSizeTooSmall(LateMinBufferBindingSizeMismatch {
+                    group_index,
+                    compact_index,
+                    shader_size,
+                    ..
+                }) => {
+                    self.im_state.ui.inputs.change_binding_size(
+                        *group_index as usize,
+                        *compact_index,
+                        *shader_size,
+                        &self.gpu.device,
+                        &self.gpu.queue
+                    );
+                    Some(Message::ReloadPipeline)
+                },
+                _ => todo!(),
+            },
+            _ => None
         }
     }
 }

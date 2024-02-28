@@ -17,13 +17,13 @@ var<uniform> my_shader_parameter: u32;
 
 |type|supported|
 |-|-|
-|bool|🔴|
+|bool|🔴 (Not allowed by wgpu)|
 |u32|🟢|
 |i32|🟢|
 |f16|🔴|
 |f32|🟢|
 |atomic\<T\>|🔴|
-|vecN\<T\>|🔴|
+|vecN\<T\>|🟢 where T is supported|
 |matCxR\<T\>|🔴|
 |array\<E,N\>|🔴|
 |array\<E\>|🔴|

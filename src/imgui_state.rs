@@ -1,4 +1,4 @@
-use std::{borrow::Cow, path::Path};
+use std::path::Path;
 
 use imgui::{ConfigFlags, Context, Image, StyleVar, TextureId, TreeNodeFlags, Ui};
 use imgui_wgpu::{Renderer, RendererConfig, Texture as ImTexture, TextureConfig};
@@ -6,14 +6,34 @@ use imgui_winit_support::{WinitPlatform, HiDpiMode};
 use wgpu::{core::pipeline::CreateShaderModuleError, util::{BufferInitDescriptor, DeviceExt}, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, Buffer, BufferBindingType, BufferUsages, CommandEncoder, Device, Queue, ShaderStages, TextureView};
 use winit::{window::Window as WinitWindow, event::Event};
 
-use crate::state::Gpu;
+use crate::{imgui_state::uniform_types::VecType, state::Gpu};
+
+use uniform_types::UniformType;
+
+use self::uniform_types::{BuiltinValue, ScalarType, ScalarUniformValue, UniformValue};
+
+mod uniform_types;
 
 const IMAGE_HEIGHT: f32 = 512.0;
 const IMAGE_WIDTH: f32 = 512.0;
 
 const DEFAULT_U32_UNIFORM: u32 = 0;
-const DEFAULT_I32_UNIFORM: i32 = 0;
-const DEFAULT_F32_UNIFORM: f32 = 0.0;
+const DEFAULT_UNIFORM: UniformValue = UniformValue::Scalar(ScalarUniformValue::F32(0.0));
+
+trait ImguiScalar {
+    fn increase(&mut self);
+    fn decrease(&mut self);
+}
+
+trait ImguiVec {
+    fn change_inner_type(&mut self, inner_type: ScalarType);
+}
+
+trait ImguiUniformSelectable {
+    fn cast_to(&self, casted_type: UniformType) -> UniformValue;
+    fn show_editor(&mut self, ui: &Ui, group_index: usize, binding_index: usize, val_name: &mut String) -> Option<UniformEditEvent>;
+    fn to_le_bytes(&self) -> Vec<u8>;
+}
 
 pub enum Message {
     ReloadShader,
@@ -22,136 +42,14 @@ pub enum Message {
 }
 
 enum UniformEditEvent {
-    EditU32(usize, usize, u32),
-    EditI32(usize, usize, i32),
-    EditF32(usize, usize, f32),
-    AddU32(usize),
-    AddI32(usize),
-    AddF32(usize),
+    UpdateBuffer(usize, usize),
+    AddUniform(usize),
     AddBindGroup,
     ChangeType(UniformType, usize, usize),
     Increase(usize, usize),
     Decrease(usize, usize),
+    ChangeInnerType(ScalarType, usize, usize),
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum BuiltinValue {
-    Time
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum UniformValue {
-    BuiltIn(BuiltinValue),
-    U32(u32),
-    I32(i32),
-    F32(f32),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum UniformType {
-    U32,
-    I32,
-    F32
-}
-
-union Primitive4Byte {
-    u32: u32,
-    i32: i32,
-    f32: f32
-}
-
-impl<'a> Into<Cow<'a, str>> for &'a UniformType {
-    fn into(self) -> Cow<'static, str> {
-        match self {
-            UniformType::U32 => Cow::Borrowed("u32"),
-            UniformType::I32 => Cow::Borrowed("i32"),
-            UniformType::F32 => Cow::Borrowed("f32"),
-        }
-    }
-}
-
-impl UniformValue {
-    fn show_editor(&mut self, ui: &Ui, group_index: usize, binding_index: usize, val_name: &mut String) -> Option<UniformEditEvent> {
-        const TYPES: &[UniformType] = &[
-            UniformType::U32,
-            UniformType::I32,
-            UniformType::F32,
-        ];
-        const COMBO_WIDTH: f32 = 50.0;
-        const PRIMITIVE_INPUT_WIDTH: f32 = 50.0;
-        const VAR_NAME_WIDTH: f32 = 150.0;
-
-        let show_primitive_selector = |message: &mut Option<UniformEditEvent>, type_index, val_name: &mut String| {
-            ui.text(format!("({binding_index})"));
-            ui.same_line();
-            ui.set_next_item_width(VAR_NAME_WIDTH);
-            ui.input_text(format!("##name_edit{group_index}_{binding_index}"), val_name).build();
-            ui.set_next_item_width(COMBO_WIDTH);
-            let mut selection = type_index;
-            if ui.combo(
-                format!("##combo_g{group_index}_b{binding_index}"),
-                &mut selection,
-                TYPES,
-                |unitype| unitype.into()
-            ) {
-                let selected_type = TYPES[selection];
-                if selected_type != TYPES[type_index] {
-                    *message = Some(UniformEditEvent::ChangeType(selected_type, group_index, binding_index))
-                }
-            };
-        };
-
-        let number_edit = |message: &mut Option<UniformEditEvent>| {
-            if ui.button(format!("+##add_{group_index}_{binding_index}")) {
-                *message = Some(UniformEditEvent::Increase(group_index, binding_index))
-            }
-            ui.same_line();
-            if ui.button(format!("-##decrease_{group_index}_{binding_index}")) {
-                *message = Some(UniformEditEvent::Decrease(group_index, binding_index))
-            }
-        };
-
-        let mut message = None;
-        match self {
-            UniformValue::BuiltIn(builtin) => match builtin {
-                BuiltinValue::Time => ui.text(format!("({binding_index}) Time (u32)")),
-            },
-            UniformValue::U32(v) => {
-                show_primitive_selector(&mut message, 0, val_name);
-                ui.same_line();
-                ui.set_next_item_width(PRIMITIVE_INPUT_WIDTH);
-                if ui.input_scalar(format!("##editor{group_index}_{binding_index}"), v).build() {
-                    message = Some(UniformEditEvent::EditU32(group_index, binding_index, *v));
-                }
-                ui.same_line();
-                number_edit(&mut message)
-            },
-            UniformValue::I32(v) => {
-                show_primitive_selector(&mut message, 1, val_name);
-                ui.same_line();
-                ui.set_next_item_width(PRIMITIVE_INPUT_WIDTH);
-                if ui.input_scalar(format!("##editor{group_index}_{binding_index}"), v).build() {
-                    message = Some(UniformEditEvent::EditI32(group_index, binding_index, *v))
-                }
-                ui.same_line();
-                number_edit(&mut message)
-            },
-            UniformValue::F32(v) => {
-                show_primitive_selector(&mut message, 2, val_name);
-                ui.same_line();
-                ui.set_next_item_width(PRIMITIVE_INPUT_WIDTH);
-                if ui.input_float(format!("##editor{group_index}_{binding_index}"), v).build() {
-                    message = Some(UniformEditEvent::EditF32(group_index, binding_index, *v))
-                }
-                ui.same_line();
-                number_edit(&mut message)
-            },
-        };
-
-        message
-    }
-}
-
 struct UniformBinding {
     pub buffer: Buffer,
     value: UniformValue,
@@ -179,17 +77,10 @@ impl UniformBinding {
     }
 
     fn new(device: &Device, value: UniformValue) -> UniformBinding {
-        let contents = match value {
-            UniformValue::BuiltIn(builtin) => match builtin {
-                BuiltinValue::Time => 0u32.to_be_bytes(),
-            },
-            UniformValue::U32(v) => v.to_le_bytes(),
-            UniformValue::I32(v) => v.to_le_bytes(),
-            UniformValue::F32(v) => v.to_le_bytes(),
-        };
+        let contents = value.to_le_bytes();
 
         let buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: None,
+            label: Some("new uniform buffer"),
             contents: &contents,
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         }).unwrap();
@@ -201,64 +92,22 @@ impl UniformBinding {
         }
     }
 
-    fn change_type(&mut self, new_type: UniformType, queue: &Queue) {
+    fn change_type(&mut self, new_type: UniformType, queue: &Queue, device: &Device) {
         let old_value = self.value;
-        let new_value = match (old_value, new_type) {
-            (UniformValue::U32(v), UniformType::I32) => {
-                let v = v as i32;
-                let new_value = UniformValue::I32(v);
-                // Don't have to update buffer
-                new_value
-            },
-            (UniformValue::U32(v), UniformType::F32) => {
-                let v = v as f32;
-                let new_value = UniformValue::F32(v);
-                // Have to update buffer
-                queue.write_buffer(&self.buffer, 0, &v.to_le_bytes()).unwrap();
-                new_value
-            },
+        let old_size = old_value.to_le_bytes().len();
+        let new_value = old_value.cast_to(new_type);
 
-            (UniformValue::I32(v), UniformType::U32) => {
-                let res = v.try_into();
-                let v = res.unwrap_or(DEFAULT_U32_UNIFORM);
-                let new_value = UniformValue::U32(v);
-                if let Err(_) = res {
-                    // Have to update buffer
-                    queue.write_buffer(&self.buffer, 0, &v.to_le_bytes()).unwrap();
-                }
-                new_value
-            },
-            (UniformValue::I32(v), UniformType::F32) => {
-                let v = v as f32;
-                let new_value = UniformValue::F32(v);
-                // Have to update buffer
-                queue.write_buffer(&self.buffer, 0, &v.to_le_bytes()).unwrap();
-                new_value
-            },
-
-            (UniformValue::F32(v), UniformType::U32) => {
-                let v = (v as i32).try_into();
-                let v = v.unwrap_or(DEFAULT_U32_UNIFORM);
-                let new_value = UniformValue::U32(v);
-                // Have to update buffer
-                queue.write_buffer(&self.buffer, 0, &v.to_le_bytes()).unwrap();
-                new_value
-            },
-            (UniformValue::F32(v), UniformType::I32) => {
-                let v = v as i32;
-                let new_value = UniformValue::I32(v);
-                // Have to update buffer
-                queue.write_buffer(&self.buffer, 0, &v.to_le_bytes()).unwrap();
-                new_value
-            },
-
-            (UniformValue::I32(_), UniformType::I32) => unreachable!(),
-            (UniformValue::F32(_), UniformType::F32) => unreachable!(),
-            (UniformValue::U32(_), UniformType::U32) => unreachable!(),
-            (UniformValue::BuiltIn(_), _) => unreachable!(),
-        };
-
-        self.value = new_value
+        self.value = new_value;
+        let new_bytes = self.value.to_le_bytes();
+        if new_bytes.len() != old_size {
+            self.buffer = device.create_buffer_init(&BufferInitDescriptor {
+                label: Some("Resized buffer"),
+                contents: &new_bytes,
+                usage: BufferUsages::COPY_DST | BufferUsages::UNIFORM,
+            }).unwrap();
+        } else {
+            queue.write_buffer(&self.buffer, 0, &new_bytes).unwrap();
+        }
     }
 
     fn show_editor(&mut self, ui: &Ui, group_index: usize, binding_index: usize) -> Option<UniformEditEvent> {
@@ -266,49 +115,41 @@ impl UniformBinding {
     }
 
     fn decrease(&mut self, queue: &Queue) {
-        let new_value = match &mut self.value {
-            UniformValue::U32(v) => {
-                if *v > 0 {
-                    *v -= 1;
-                }
-                Primitive4Byte {u32: *v}
-            },
-            UniformValue::I32(v) => {
-                *v -= 1;
-                Primitive4Byte {i32: *v}
-            },
-            UniformValue::F32(v) => {
-                *v -= 1.0;
-                Primitive4Byte {f32: *v}
-            },
-            UniformValue::BuiltIn(_) => unreachable!(),
-        };
+        self.value.decrease();
 
-        // All values of the union have 4 bytes, .to_le_bytes() should return the same, therefore it should be safe
-        let new_value = unsafe{new_value.u32.to_le_bytes()};
+        let new_value = self.value.to_le_bytes();
         queue.write_buffer(&self.buffer, 0, &new_value).unwrap();
     }
 
     fn increase(&mut self, queue: &Queue) {
-        let new_value = match &mut self.value {
-            UniformValue::U32(v) => {
-                *v += 1;
-                Primitive4Byte {u32: *v}
-            },
-            UniformValue::I32(v) => {
-                *v += 1;
-                Primitive4Byte {i32: *v}
-            },
-            UniformValue::F32(v) => {
-                *v += 1.0;
-                Primitive4Byte {f32: *v}
-            },
-            UniformValue::BuiltIn(_) => unreachable!(),
-        };
+        self.value.increase();
 
-        // All values of the union have 4 bytes, .to_le_bytes() should return the same, therefore it should be safe
-        let new_value = unsafe{new_value.u32.to_le_bytes()};
+        let new_value = self.value.to_le_bytes();
         queue.write_buffer(&self.buffer, 0, &new_value).unwrap();
+    }
+
+    fn change_inner_type(&mut self, inner_type: ScalarType, queue: &Queue) {
+        dbg!(self.value);
+        self.value.change_inner_type(inner_type);
+        let new_value = self.value.to_le_bytes();
+        queue.write_buffer(&self.buffer, 0, &new_value).unwrap();
+        dbg!(self.value);
+    }
+
+    fn change_binding_size(&mut self, new_size: u64, device: &Device, queue: &Queue) {
+        dbg!("Changed binding size");
+        const DEFAULT_SIZEN_TYPE: &[Option<UniformType>] = &[
+            None,None,None, None, // sizes 0..=3 don't have any default value
+            Some(UniformType::Scalar(ScalarType::F32)), // Size 4
+            None,None,None, // sizes 5..=7 don't have any default value
+            Some(UniformType::Vec(VecType::Vec2(ScalarType::F32))), // Size 8
+            None,None,None, // sizes 9..=11 don't have any default value
+            Some(UniformType::Vec(VecType::Vec2(ScalarType::F32))), // Size 12
+            None,None,None, // sizes 13..=15 don't have any default value
+            Some(UniformType::Vec(VecType::Vec2(ScalarType::F32))), // Size 16
+            // Sizes 17..infinity don't have any default value
+        ];
+        self.change_type(DEFAULT_SIZEN_TYPE.get(new_size as usize).unwrap().unwrap(), queue, device)
     }
 }
 
@@ -346,18 +187,8 @@ impl UniformGroup {
         }).unwrap()
     }
 
-    fn add_u32(&mut self, device: &Device) {
-        self.bindings.push(UniformBinding::new(device, UniformValue::U32(DEFAULT_U32_UNIFORM)));
-        self.refresh_bind_group(device)
-    }
-
-    fn add_i32(&mut self, device: &Device) {
-        self.bindings.push(UniformBinding::new(device, UniformValue::I32(DEFAULT_I32_UNIFORM)));
-        self.refresh_bind_group(device)
-    }
-
     fn add_f32(&mut self, device: &Device) {
-        self.bindings.push(UniformBinding::new(device, UniformValue::F32(DEFAULT_F32_UNIFORM)));
+        self.bindings.push(UniformBinding::new(device, DEFAULT_UNIFORM));
         self.refresh_bind_group(device)
     }
 
@@ -366,22 +197,9 @@ impl UniformGroup {
         self.refresh_bind_group(device)
     }
 
-    fn edit_u32(&mut self, b_index: usize, value: u32, queue: &Queue) {
+    fn update_buffer(&mut self, b_index: usize, queue: &Queue) {
         let binding = &mut self.bindings[b_index];
-        queue.write_buffer(&binding.buffer, 0, &value.to_le_bytes()).unwrap();
-        binding.value = UniformValue::U32(value)
-    }
-
-    fn edit_i32(&mut self, b_index: usize, value: i32, queue: &Queue) {
-        let binding = &mut self.bindings[b_index];
-        queue.write_buffer(&binding.buffer, 0, &value.to_le_bytes()).unwrap();
-        binding.value = UniformValue::I32(value)
-    }
-
-    fn edit_f32(&mut self, b_index: usize, value: f32, queue: &Queue) {
-        let binding = &mut self.bindings[b_index];
-        queue.write_buffer(&binding.buffer, 0, &value.to_le_bytes()).unwrap();
-        binding.value = UniformValue::F32(value)
+        queue.write_buffer(&binding.buffer, 0, &binding.value.to_le_bytes()).unwrap();
     }
 
     fn refresh_bind_group(&mut self, device: &Device) {
@@ -411,8 +229,9 @@ impl UniformGroup {
         }
     }
 
-    fn change_type(&mut self, unitype: UniformType, b_index: usize, queue: &Queue) {
-        self.bindings[b_index].change_type(unitype, queue)
+    fn change_type(&mut self, unitype: UniformType, b_index: usize, queue: &Queue, device: &Device) {
+        self.bindings[b_index].change_type(unitype, queue, device);
+        self.refresh_bind_group(device);
     }
 
     fn increase(&mut self, b_index: usize, queue: &Queue) {
@@ -421,6 +240,16 @@ impl UniformGroup {
 
     fn decrease(&mut self, b_index: usize, queue: &Queue) {
         self.bindings[b_index].decrease(queue)
+    }
+
+    fn change_inner_type(&mut self, inner_type: ScalarType, b_index: usize, device: &Device, queue: &Queue) {
+        self.bindings[b_index].change_inner_type(inner_type, queue);
+        self.refresh_bind_group(device);
+    }
+
+    fn change_binding_size(&mut self, b_index: usize, new_size: u64, device: &Device, queue: &Queue) {
+        self.bindings[b_index].change_binding_size(new_size, device, queue);
+        self.refresh_bind_group(device);
     }
 }
 
@@ -440,26 +269,12 @@ impl Uniforms {
         }
     }
 
-    fn add_u32(&mut self, g_index: usize, device: &Device) {
-        self.groups[g_index].add_u32(device)
-    }
-
-    fn add_i32(&mut self, g_index: usize, device: &Device) {
-        self.groups[g_index].add_i32(device)
-    }
-
     fn add_f32(&mut self, g_index: usize, device: &Device) {
         self.groups[g_index].add_f32(device)
     }
 
-    fn edit_u32(&mut self, g_index: usize, b_index: usize, value: u32, queue: &Queue) {
-        self.groups[g_index].edit_u32(b_index, value, queue)
-    }
-    fn edit_i32(&mut self, g_index: usize, b_index: usize, value: i32, queue: &Queue) {
-        self.groups[g_index].edit_i32(b_index, value, queue)
-    }
-    fn edit_f32(&mut self, g_index: usize, b_index: usize, value: f32, queue: &Queue) {
-        self.groups[g_index].edit_f32(b_index, value, queue)
+    fn update_buffer(&mut self, g_index: usize, b_index: usize, queue: &Queue) {
+        self.groups[g_index].update_buffer(b_index, queue)
     }
 
     fn add_bind_group(&mut self, device: &Device) {
@@ -486,8 +301,8 @@ impl Uniforms {
         self.groups[group as usize].define_binding(binding, device);
     }
 
-    fn change_type(&mut self, unitype: UniformType, g_index: usize, b_index: usize, queue: &Queue) {
-        self.groups[g_index].change_type(unitype, b_index, queue)
+    fn change_type(&mut self, unitype: UniformType, g_index: usize, b_index: usize, queue: &Queue, device: &Device) {
+        self.groups[g_index].change_type(unitype, b_index, queue, device)
     }
 
     fn increase(&mut self, g_index: usize, b_index: usize, queue: &Queue) {
@@ -496,6 +311,14 @@ impl Uniforms {
 
     fn decrease(&mut self, g_index: usize, b_index: usize, queue: &Queue) {
         self.groups[g_index].decrease(b_index, queue)
+    }
+
+    fn change_inner_type(&mut self, inner_type: ScalarType, g_index: usize, b_index: usize, device: &Device, queue: &Queue) {
+        self.groups[g_index].change_inner_type(inner_type, b_index, device, queue)
+    }
+
+    pub(crate) fn change_binding_size(&mut self, g_index: usize, b_index: usize, new_size: u64, device: &Device, queue: &Queue) {
+        self.groups[g_index].change_binding_size(b_index, new_size, device, queue);
     }
 }
 
@@ -557,16 +380,8 @@ impl UiState {
                         }
                         ui.separator();
                     }
-                    if ui.button(format!("Add u32##add_u32{group_index}")) {
-                        edit_event = Some(UniformEditEvent::AddU32(group_index))
-                    };
-                    ui.same_line();
-                    if ui.button(format!("Add i32##add_i32{group_index}")) {
-                        edit_event = Some(UniformEditEvent::AddI32(group_index))
-                    };
-                    ui.same_line();
-                    if ui.button(format!("Add f32##add_f32{group_index}")) {
-                        edit_event = Some(UniformEditEvent::AddF32(group_index))
+                    if ui.button(format!("Add parameter to this group##add_f32{group_index}")) {
+                        edit_event = Some(UniformEditEvent::AddUniform(group_index))
                     };
                 }
             }
@@ -578,16 +393,13 @@ impl UiState {
 
             if let Some(event) = edit_event {
                 match event {
-                    UniformEditEvent::EditU32(g_index, b_index, value) => self.inputs.edit_u32(g_index, b_index, value, queue),
-                    UniformEditEvent::EditI32(g_index, b_index, value) => self.inputs.edit_i32(g_index, b_index, value, queue),
-                    UniformEditEvent::EditF32(g_index, b_index, value) => self.inputs.edit_f32(g_index, b_index, value, queue),
-                    UniformEditEvent::AddU32(g_index) => self.inputs.add_u32(g_index, device),
-                    UniformEditEvent::AddI32(g_index) => self.inputs.add_i32(g_index, device),
-                    UniformEditEvent::AddF32(g_index) => self.inputs.add_f32(g_index, device),
+                    UniformEditEvent::UpdateBuffer(g_index, b_index) => self.inputs.update_buffer(g_index, b_index, queue),
+                    UniformEditEvent::AddUniform(g_index) => self.inputs.add_f32(g_index, device),
                     UniformEditEvent::AddBindGroup => self.inputs.add_bind_group(device),
-                    UniformEditEvent::ChangeType(unitype, g_index, b_index) => self.inputs.change_type(unitype, g_index, b_index, queue),
+                    UniformEditEvent::ChangeType(unitype, g_index, b_index) => self.inputs.change_type(unitype, g_index, b_index, queue, device),
                     UniformEditEvent::Increase(g_index, b_index) => self.inputs.increase(g_index, b_index, queue),
                     UniformEditEvent::Decrease(g_index, b_index) => self.inputs.decrease(g_index, b_index, queue),
+                    UniformEditEvent::ChangeInnerType(inner_type, g_index, b_index) => self.inputs.change_inner_type(inner_type, g_index, b_index, device, queue),
                 };
                 message = Some(Message::ReloadPipeline);
             }
