@@ -129,15 +129,12 @@ impl UniformBinding {
     }
 
     fn change_inner_type(&mut self, inner_type: ScalarType, queue: &Queue) {
-        dbg!(self.value);
         self.value.change_inner_type(inner_type);
         let new_value = self.value.to_le_bytes();
         queue.write_buffer(&self.buffer, 0, &new_value).unwrap();
-        dbg!(self.value);
     }
 
     fn change_binding_size(&mut self, new_size: u64, device: &Device, queue: &Queue) {
-        dbg!("Changed binding size");
         const DEFAULT_SIZEN_TYPE: &[Option<UniformType>] = &[
             None,None,None, None, // sizes 0..=3 don't have any default value
             Some(UniformType::Scalar(ScalarType::F32)), // Size 4

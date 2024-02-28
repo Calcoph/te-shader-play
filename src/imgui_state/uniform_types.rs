@@ -245,7 +245,7 @@ impl VecUniformValue for Vec2UniformValue {
                 ScalarType::F32 => *self = Vec2UniformValue::F32(*x as f32, *y as f32),
             },
             Vec2UniformValue::F32(x, y) => match inner_type {
-                ScalarType::U32 => {*self = Vec2UniformValue::U32(cast_f32_u32(*x), cast_f32_u32(*y));dbg!(self);},
+                ScalarType::U32 => *self = Vec2UniformValue::U32(cast_f32_u32(*x), cast_f32_u32(*y)),
                 ScalarType::I32 => *self = Vec2UniformValue::I32(*x as i32, *y as i32),
                 ScalarType::F32 => (),
             },
@@ -787,25 +787,21 @@ impl ImguiScalar for UniformValue {
 
 impl ImguiVec for UniformValue {
     fn change_inner_type(&mut self, inner_type: ScalarType) {
-        dbg!(&self);
         match self {
             UniformValue::Vector(v) => v.change_inner_type(inner_type),
             UniformValue::BuiltIn(_) => unreachable!(),
             UniformValue::Scalar(_) => unreachable!(),
         }
-        dbg!(self);
     }
 }
 
 impl ImguiVec for VectorUniformValue {
     fn change_inner_type(&mut self, inner_type: ScalarType) {
-        dbg!(&self);
         match self {
-            VectorUniformValue::Vec2(v) => {dbg!(&v);v.change_inner_type(inner_type);dbg!(v);},
+            VectorUniformValue::Vec2(v) => v.change_inner_type(inner_type),
             VectorUniformValue::Vec3(v) => v.change_inner_type(inner_type),
             VectorUniformValue::Vec4(v) => v.change_inner_type(inner_type),
         }
-        dbg!(self);
     }
 }
 
