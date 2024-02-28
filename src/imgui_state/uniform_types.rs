@@ -357,15 +357,22 @@ impl VecUniformValue for Vec3UniformValue {
                 }
             },
             Vec3UniformValue::F32(x, y, z) => {
-                let mut vars = Vector3 {
+                let mut c_vars = Vector3 {
                     x: *x,
                     y: *y,
                     z: *z,
                 };
-                if ui.color_edit3(format!("##v3edit_{group_index}_{binding_index}"), &mut vars) {
-                    *x = vars.x;
-                    *y = vars.y;
-                    *z = vars.z;
+                let mut vars = [*x, *y, *z];
+                if ui.input_scalar_n(format!("##v3edit_{group_index}_{binding_index}"), &mut vars).build() {
+                    *x = vars[0];
+                    *y = vars[1];
+                    *z = vars[2];
+                    *message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
+                }
+                if ui.color_edit3(format!("##v3edit_{group_index}_{binding_index}"), &mut c_vars) {
+                    *x = c_vars.x;
+                    *y = c_vars.y;
+                    *z = c_vars.z;
                     *message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
             },
@@ -500,17 +507,25 @@ impl VecUniformValue for Vec4UniformValue {
                 }
             },
             Vec4UniformValue::F32(x, y, z, w) => {
-                let mut vars = Vector4 {
+                let mut c_vars = Vector4 {
                     x: *x,
                     y: *y,
                     z: *z,
                     w: *w
                 };
-                if ui.color_edit4(format!("##v4edit_{group_index}_{binding_index}"), &mut vars) {
-                    *x = vars.x;
-                    *y = vars.y;
-                    *z = vars.z;
-                    *w = vars.w;
+                let mut vars = [*x, *y, *z, *w];
+                if ui.input_scalar_n(format!("##v4edit_{group_index}_{binding_index}"), &mut vars).build() {
+                    *x = vars[0];
+                    *y = vars[1];
+                    *z = vars[2];
+                    *w = vars[3];
+                    *message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
+                }
+                if ui.color_edit4(format!("##v4edit_{group_index}_{binding_index}"), &mut c_vars) {
+                    *x = c_vars.x;
+                    *y = c_vars.y;
+                    *z = c_vars.z;
+                    *w = c_vars.w;
                     *message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
             },
