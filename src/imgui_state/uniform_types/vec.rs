@@ -5,7 +5,7 @@ use mint::{Vector3, Vector4};
 
 use crate::imgui_state::{uniform_types::{scalar::ScalarPrimitive, ScalarType}, ImguiUniformSelectable, ImguiVec, UniformEditEvent};
 
-use super::{cast_f32_u32, cast_i32_u32, matrix::{Column2, Column3, Column4, MatrixUniformValue}, scalar::ScalarUniformValue, MatrixType, UniformType, UniformValue};
+use super::{cast_f32_u32, cast_i32_u32, matrix::{Column2, Column3, Column4, MatrixUniformValue}, scalar::ScalarUniformValue, transform::TransformUniformValue, MatrixType, UniformType, UniformValue};
 
 trait VecUniformValue {
     fn show_editor(&mut self, ui: &Ui, group_index: usize, binding_index: usize, message: &mut Option<UniformEditEvent>);
@@ -14,6 +14,7 @@ trait VecUniformValue {
     fn cast_to_scalar(&self, s: ScalarType) -> UniformValue;
     fn cast_to_vec(&self, v: VecType) -> UniformValue;
     fn cast_to_matrix(&self, m: MatrixType) -> UniformValue;
+    fn cast_to_transform(&self) -> UniformValue;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -163,6 +164,10 @@ impl VecUniformValue for Vec2UniformValue {
             MatrixType::M4x3 => MatrixUniformValue::M4x3(Column3(0.0, 0.0, 0.0), Column3(0.0, 0.0, 0.0), Column3(0.0, 0.0, 0.0), Column3(0.0, 0.0, 0.0)),
             MatrixType::M4x4 => MatrixUniformValue::M4x4(Column4(0.0, 0.0, 0.0, 0.0), Column4(0.0, 0.0, 0.0, 0.0), Column4(0.0, 0.0, 0.0, 0.0), Column4(0.0, 0.0, 0.0, 0.0)),
         })
+    }
+
+    fn cast_to_transform(&self) -> UniformValue {
+        UniformValue::Transform(TransformUniformValue::default())
     }
 }
 
@@ -327,6 +332,10 @@ impl VecUniformValue for Vec3UniformValue {
             MatrixType::M4x3 => MatrixUniformValue::M4x3(Column3(0.0, 0.0, 0.0), Column3(0.0, 0.0, 0.0), Column3(0.0, 0.0, 0.0), Column3(0.0, 0.0, 0.0)),
             MatrixType::M4x4 => MatrixUniformValue::M4x4(Column4(0.0, 0.0, 0.0, 0.0), Column4(0.0, 0.0, 0.0, 0.0), Column4(0.0, 0.0, 0.0, 0.0), Column4(0.0, 0.0, 0.0, 0.0)),
         })
+    }
+
+    fn cast_to_transform(&self) -> UniformValue {
+        UniformValue::Transform(TransformUniformValue::default())
     }
 }
 
@@ -497,6 +506,10 @@ impl VecUniformValue for Vec4UniformValue {
             MatrixType::M4x4 => MatrixUniformValue::M4x4(Column4(0.0, 0.0, 0.0, 0.0), Column4(0.0, 0.0, 0.0, 0.0), Column4(0.0, 0.0, 0.0, 0.0), Column4(0.0, 0.0, 0.0, 0.0)),
         })
     }
+
+    fn cast_to_transform(&self) -> UniformValue {
+        UniformValue::Transform(TransformUniformValue::default())
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -523,6 +536,11 @@ impl ImguiUniformSelectable for VectorUniformValue {
                 VectorUniformValue::Vec2(v) => v.cast_to_matrix(m),
                 VectorUniformValue::Vec3(v) => v.cast_to_matrix(m),
                 VectorUniformValue::Vec4(v) => v.cast_to_matrix(m),
+            },
+            UniformType::Transform => match self {
+                VectorUniformValue::Vec2(v) => v.cast_to_transform(),
+                VectorUniformValue::Vec3(v) => v.cast_to_transform(),
+                VectorUniformValue::Vec4(v) => v.cast_to_transform(),
             },
         }
     }

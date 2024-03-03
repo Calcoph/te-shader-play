@@ -4,7 +4,7 @@ use imgui::Ui;
 
 use crate::imgui_state::{uniform_types::ExtendedUi, ImguiMatrix, ImguiUniformSelectable, UniformEditEvent};
 
-use super::{scalar::ScalarUniformValue, vec::{Vec2UniformValue, Vec3UniformValue, Vec4UniformValue, VectorUniformValue}, ScalarType, UniformType, UniformValue, VecType};
+use super::{scalar::ScalarUniformValue, transform::TransformUniformValue, vec::{Vec2UniformValue, Vec3UniformValue, Vec4UniformValue, VectorUniformValue}, ScalarType, UniformType, UniformValue, VecType};
 
 
 trait MatrixColumn {
@@ -163,6 +163,10 @@ impl MatrixUniformValue {
             }
         };
     }
+
+    fn cast_to_transform(&self) -> UniformValue {
+        UniformValue::Transform(TransformUniformValue::default())
+    }
 }
 
 
@@ -173,6 +177,7 @@ impl ImguiUniformSelectable for MatrixUniformValue {
             UniformType::Scalar(s) => self.cast_to_scalar(s),
             UniformType::Vec(v) => self.cast_to_vec(v),
             UniformType::Matrix(m) => self.cast_to_matrix(m),
+            UniformType::Transform => self.cast_to_transform(),
         }
     }
 
@@ -452,6 +457,7 @@ impl ImguiMatrix for MatrixUniformValue {
             UniformValue::Scalar(_) => unreachable!(),
             UniformValue::Vector(_) => unreachable!(),
             UniformValue::Matrix(m) => *self = m,
+            UniformValue::Transform(_) => unreachable!(),
         }
     }
 }

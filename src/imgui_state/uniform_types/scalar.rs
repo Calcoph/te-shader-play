@@ -4,7 +4,7 @@ use imgui::Ui;
 
 use crate::imgui_state::{ImguiScalar, ImguiUniformSelectable, UniformEditEvent};
 
-use super::{cast_f32_u32, cast_i32_u32, matrix::{Column2, Column3, Column4, MatrixUniformValue}, vec::{Vec2UniformValue, Vec3UniformValue, Vec4UniformValue}, MatrixType, UniformType, UniformValue, VecType, VectorUniformValue};
+use super::{cast_f32_u32, cast_i32_u32, matrix::{Column2, Column3, Column4, MatrixUniformValue}, transform::TransformUniformValue, vec::{Vec2UniformValue, Vec3UniformValue, Vec4UniformValue}, MatrixType, UniformType, UniformValue, VecType, VectorUniformValue};
 
 pub(crate) union ScalarPrimitive {
     pub(crate) u32: u32,
@@ -43,6 +43,7 @@ impl ImguiUniformSelectable for ScalarUniformValue {
             UniformType::Scalar(s) => UniformValue::Scalar(self.cast_to_scalar(s)),
             UniformType::Vec(v) => UniformValue::Vector(self.cast_to_vec(v)),
             UniformType::Matrix(m) => UniformValue::Matrix(self.cast_to_matrix(m)),
+            UniformType::Transform => UniformValue::Transform(self.cast_to_transform()),
         }
     }
 
@@ -178,6 +179,10 @@ impl ScalarUniformValue {
         if ui.button(format!("-##decrease_{group_index}_{binding_index}")) {
             *message = Some(UniformEditEvent::Decrease(group_index, binding_index))
         }
+    }
+
+    fn cast_to_transform(&self) -> TransformUniformValue {
+        TransformUniformValue::default()
     }
 }
 

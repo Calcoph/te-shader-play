@@ -5,13 +5,14 @@ use imgui::Ui;
 use crate::imgui_state::UniformEditEvent;
 
 pub(crate) use self::{matrix::MatrixType, scalar::{ScalarType, ScalarUniformValue}, vec::VecType};
-use self::{matrix::MatrixUniformValue, vec::VectorUniformValue};
+use self::{matrix::MatrixUniformValue, transform::TransformUniformValue, vec::VectorUniformValue};
 
 use super::{ImguiMatrix, ImguiScalar, ImguiUniformSelectable, ImguiVec, DEFAULT_U32_UNIFORM};
 
 mod scalar;
 mod vec;
 mod matrix;
+mod transform;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum BuiltinValue {
@@ -42,6 +43,7 @@ pub(crate) enum UniformValue {
     Scalar(ScalarUniformValue),
     Vector(VectorUniformValue),
     Matrix(MatrixUniformValue),
+    Transform(TransformUniformValue)
 }
 
 trait ExtendedUi {
@@ -88,7 +90,8 @@ impl ExtendedUi for Ui {
 pub(crate) enum UniformType {
     Scalar(ScalarType),
     Vec(VecType),
-    Matrix(MatrixType)
+    Matrix(MatrixType),
+    Transform
 }
 
 impl ImguiUniformSelectable for UniformValue {
@@ -98,6 +101,7 @@ impl ImguiUniformSelectable for UniformValue {
             UniformValue::Vector(v) => v.cast_to(casted_type),
             UniformValue::Matrix(m) => m.cast_to(casted_type),
             UniformValue::BuiltIn(_) => unreachable!(),
+            UniformValue::Transform(t) => t.cast_to(casted_type),
         }
     }
 
@@ -112,6 +116,7 @@ impl ImguiUniformSelectable for UniformValue {
             UniformValue::Scalar(s) => s.show_editor(ui, group_index, binding_index, val_name),
             UniformValue::Vector(v) => v.show_editor(ui, group_index, binding_index, val_name),
             UniformValue::Matrix(m) => m.show_editor(ui, group_index, binding_index, val_name),
+            UniformValue::Transform(t) => t.show_editor(ui, group_index, binding_index, val_name),
         }
     }
 
@@ -121,6 +126,7 @@ impl ImguiUniformSelectable for UniformValue {
             UniformValue::Scalar(s) => s.to_le_bytes(),
             UniformValue::Vector(v) => v.to_le_bytes(),
             UniformValue::Matrix(m) => m.to_le_bytes(),
+            UniformValue::Transform(t) => t.to_le_bytes(),
         }
     }
 }
@@ -132,6 +138,7 @@ impl ImguiScalar for UniformValue {
             UniformValue::Matrix(_) => unreachable!(),
             UniformValue::BuiltIn(_) => unreachable!(),
             UniformValue::Vector(_) => unreachable!(),
+            UniformValue::Transform(_) => unreachable!(),
         }
     }
 
@@ -141,6 +148,7 @@ impl ImguiScalar for UniformValue {
             UniformValue::Matrix(_) => unreachable!(),
             UniformValue::BuiltIn(_) => unreachable!(),
             UniformValue::Vector(_) => unreachable!(),
+            UniformValue::Transform(_) => unreachable!(),
         }
     }
 }
@@ -152,6 +160,7 @@ impl ImguiVec for UniformValue {
             UniformValue::Matrix(_) => unreachable!(),
             UniformValue::BuiltIn(_) => unreachable!(),
             UniformValue::Scalar(_) => unreachable!(),
+            UniformValue::Transform(_) => unreachable!(),
         }
     }
 }
@@ -163,6 +172,7 @@ impl ImguiMatrix for UniformValue {
             UniformValue::Scalar(_) => unreachable!(),
             UniformValue::Vector(_) => unreachable!(),
             UniformValue::Matrix(m) => m.change_matrix_size(matrix_size),
+            UniformValue::Transform(_) => unreachable!(),
         }
     }
 }
@@ -177,8 +187,9 @@ impl UniformValue {
             UniformType::Vec(VecType::Vec3(ScalarType::F32)),
             UniformType::Vec(VecType::Vec4(ScalarType::F32)),
             UniformType::Matrix(MatrixType::M4x4),
+            UniformType::Transform
         ];
-        const COMBO_WIDTH: f32 = 70.0;
+        const COMBO_WIDTH: f32 = 95.0;
         const VAR_NAME_WIDTH: f32 = 150.0;
 
         ui.text(format!("({binding_index})"));
@@ -207,6 +218,7 @@ impl<'a> Into<Cow<'a, str>> for &'a UniformType {
             UniformType::Scalar(s) => s.into(),
             UniformType::Vec(v) => v.into(),
             UniformType::Matrix(_) => Cow::Borrowed("matrix"),
+            UniformType::Transform => Cow::Borrowed("transform"),
         }
     }
 }
