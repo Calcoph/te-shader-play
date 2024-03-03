@@ -1,6 +1,6 @@
-use std::{any::Any, borrow::Cow, error::Error, path::Path, time::{Duration, Instant}};
+use std::{borrow::Cow, path::Path, time::{Duration, Instant}};
 
-use wgpu::{core::{binding_model::LateMinBufferBindingSizeMismatch, command::{DrawError, PassErrorScope, RenderPassError, RenderPassErrorInner}, pipeline::{CreateRenderPipelineError, CreateShaderModuleError}, validation::{BindingError, StageError}}, naga::compact, BlendState, ColorTargetState, ColorWrites, Device, FragmentState, FrontFace, MultisampleState, PipelineLayout, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, Queue, RenderPipeline, RenderPipelineDescriptor, ShaderModule, ShaderModuleDescriptor, ShaderSource, ShaderStages, Surface, SurfaceConfiguration, VertexState};
+use wgpu::{core::{binding_model::LateMinBufferBindingSizeMismatch, command::{DrawError, RenderPassErrorInner}, pipeline::{CreateRenderPipelineError, CreateShaderModuleError}, validation::{BindingError, StageError}}, BlendState, ColorTargetState, ColorWrites, Device, FragmentState, FrontFace, MultisampleState, PipelineLayout, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, Queue, RenderPipeline, RenderPipelineDescriptor, ShaderModule, ShaderModuleDescriptor, ShaderSource, ShaderStages, Surface, SurfaceConfiguration, VertexState};
 use winit::window::Window;
 
 use crate::imgui_state::{ImState, Message, Uniforms};

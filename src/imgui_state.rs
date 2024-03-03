@@ -10,7 +10,7 @@ use crate::{imgui_state::uniform_types::VecType, state::Gpu};
 
 use uniform_types::UniformType;
 
-use self::uniform_types::{BuiltinValue, ScalarType, ScalarUniformValue, UniformValue};
+use self::uniform_types::{BuiltinValue, MatrixType, ScalarType, ScalarUniformValue, UniformValue};
 
 mod uniform_types;
 
@@ -27,6 +27,10 @@ trait ImguiScalar {
 
 trait ImguiVec {
     fn change_inner_type(&mut self, inner_type: ScalarType);
+}
+
+trait ImguiMatrix {
+    fn change_matrix_size(&mut self, matrix_size: MatrixType);
 }
 
 trait ImguiUniformSelectable {
@@ -49,6 +53,7 @@ enum UniformEditEvent {
     Increase(usize, usize),
     Decrease(usize, usize),
     ChangeInnerType(ScalarType, usize, usize),
+    ChangeMatrixSize(MatrixType, usize, usize),
 }
 struct UniformBinding {
     pub buffer: Buffer,
@@ -135,6 +140,18 @@ impl UniformBinding {
     }
 
     fn change_binding_size(&mut self, new_size: u64, device: &Device, queue: &Queue) {
+        /*
+        Matrix sizes:
+        2x2: 4*f32 = 4*4 = 16
+        2x3: 6*f32 = 6*4 = 24
+        3x2: 6*f32 = 6*4 = 24
+        2x4: 8*f32 = 8*4 = 32
+        4x2: 8*f32 = 8*4 = 32
+        3x3: 9*f32 = 9*4 = 36
+        3x4: 12*f32 = 12*4 = 48
+        4x3: 12*f32 = 12*4 = 48
+        4x4: 16*f32 = 16*4 = 64
+        */
         const DEFAULT_SIZEN_TYPE: &[Option<UniformType>] = &[
             None,None,None, None, // sizes 0..=3 don't have any default value
             Some(UniformType::Scalar(ScalarType::F32)), // Size 4
@@ -144,9 +161,37 @@ impl UniformBinding {
             Some(UniformType::Vec(VecType::Vec3(ScalarType::F32))), // Size 12
             None,None,None, // sizes 13..=15 don't have any default value
             Some(UniformType::Vec(VecType::Vec4(ScalarType::F32))), // Size 16
-            // Sizes 17..infinity don't have any default value
+            None,None,None,None,None,None,None, // sizes 17..=23 don't have any default value
+            Some(UniformType::Matrix(MatrixType::M2x3)), // Size 24
+            None,None,None,None,None,None,None, // sizes 25..=31 don't have any default value
+            Some(UniformType::Matrix(MatrixType::M2x4)), // Size 32
+            None,None,None, // sizes 33..=35 don't have any default value
+            Some(UniformType::Matrix(MatrixType::M3x3)), // Size 36
+            None,None,None,None,None,None,None,None,None,None,None, // sizes 37..=37 don't have any default value
+            Some(UniformType::Matrix(MatrixType::M3x4)), // Size 48
+            None,None,None,None,None,None,None,None,None,None,None,None,None,None,None, // sizes 49..=63 don't have any default value
+            Some(UniformType::Matrix(MatrixType::M4x4)), // Size 64
+            // Sizes 65..infinity don't have any default value
         ];
+        // Make sure that I've coutned correctly
+        // TODO: Make this into a test
+        assert_eq!(DEFAULT_SIZEN_TYPE[4], Some(UniformType::Scalar(ScalarType::F32)));
+        assert_eq!(DEFAULT_SIZEN_TYPE[8], Some(UniformType::Vec(VecType::Vec2(ScalarType::F32))));
+        assert_eq!(DEFAULT_SIZEN_TYPE[12], Some(UniformType::Vec(VecType::Vec3(ScalarType::F32))));
+        assert_eq!(DEFAULT_SIZEN_TYPE[16], Some(UniformType::Vec(VecType::Vec4(ScalarType::F32))));
+        assert_eq!(DEFAULT_SIZEN_TYPE[24], Some(UniformType::Matrix(MatrixType::M2x3)));
+        assert_eq!(DEFAULT_SIZEN_TYPE[32], Some(UniformType::Matrix(MatrixType::M2x4)));
+        assert_eq!(DEFAULT_SIZEN_TYPE[36], Some(UniformType::Matrix(MatrixType::M3x3)));
+        assert_eq!(DEFAULT_SIZEN_TYPE[48], Some(UniformType::Matrix(MatrixType::M3x4)));
+        assert_eq!(DEFAULT_SIZEN_TYPE[64], Some(UniformType::Matrix(MatrixType::M4x4)));
+        assert_eq!(DEFAULT_SIZEN_TYPE.len(), 65);
         self.change_type(DEFAULT_SIZEN_TYPE.get(new_size as usize).unwrap().unwrap(), queue, device)
+    }
+
+    fn change_matrix_size(&mut self, matrix_size: MatrixType, queue: &Queue) {
+        self.value.change_matrix_size(matrix_size);
+        let new_value = self.value.to_le_bytes();
+        queue.write_buffer(&self.buffer, 0, &new_value).unwrap();
     }
 }
 
@@ -248,6 +293,11 @@ impl UniformGroup {
         self.bindings[b_index].change_binding_size(new_size, device, queue);
         self.refresh_bind_group(device);
     }
+
+    fn change_matrix_size(&mut self, matrix_size: MatrixType, b_index: usize, device: &Device, queue: &Queue) {
+        self.bindings[b_index].change_matrix_size(matrix_size, queue);
+        self.refresh_bind_group(device);
+    }
 }
 
 pub struct Uniforms {
@@ -316,6 +366,10 @@ impl Uniforms {
 
     pub(crate) fn change_binding_size(&mut self, g_index: usize, b_index: usize, new_size: u64, device: &Device, queue: &Queue) {
         self.groups[g_index].change_binding_size(b_index, new_size, device, queue);
+    }
+
+    fn change_matrix_size(&mut self, matrix_size: MatrixType, g_index: usize, b_index: usize, device: &Device, queue: &Queue) {
+        self.groups[g_index].change_matrix_size(matrix_size, b_index, device, queue)
     }
 }
 
@@ -397,6 +451,7 @@ impl UiState {
                     UniformEditEvent::Increase(g_index, b_index) => self.inputs.increase(g_index, b_index, queue),
                     UniformEditEvent::Decrease(g_index, b_index) => self.inputs.decrease(g_index, b_index, queue),
                     UniformEditEvent::ChangeInnerType(inner_type, g_index, b_index) => self.inputs.change_inner_type(inner_type, g_index, b_index, device, queue),
+                    UniformEditEvent::ChangeMatrixSize(matrix_size, g_index, b_index) => self.inputs.change_matrix_size(matrix_size, g_index, b_index, device, queue),
                 };
                 message = Some(Message::ReloadPipeline);
             }

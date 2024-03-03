@@ -24,7 +24,7 @@ var<uniform> my_shader_parameter: u32;
 |f32|🟢|
 |atomic\<T\>|🔴|
 |vecN\<T\>|🟢 where T is supported|
-|matCxR\<T\>|🔴|
+|matCxR\<T\>|🟢 where T is f32 and C and R in {2,3,4}|
 |array\<E,N\>|🔴|
 |array\<E\>|🔴|
 |struct|🔴|
