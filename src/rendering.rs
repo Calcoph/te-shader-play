@@ -1,9 +1,13 @@
 use std::error::Error;
 
 use wgpu::{core::command::{RenderPassError, RenderPassErrorInner}, Color, CommandEncoder, CommandEncoderDescriptor, IndexFormat, LoadOp, Operations, RenderPassColorAttachment, RenderPassDescriptor, StoreOp, SurfaceTexture, TextureView};
-use winit::window::Window;
+use winit::window::{Window, WindowLevel};
 
-use crate::State;
+use crate::{imgui_state::Message, State};
+
+pub(crate) enum RenderMessage {
+    ChangeWindowLevel(WindowLevel)
+}
 
 pub fn render(output: SurfaceTexture, state: &mut State, window: &Window) {
     let handle_render_pass_err = |state: &mut State, err: Result<(), RenderPassError>| {
@@ -30,19 +34,13 @@ pub fn render(output: SurfaceTexture, state: &mut State, window: &Window) {
     let mut encoder = state.gpu.device.create_command_encoder(&CommandEncoderDescriptor { label: None }).unwrap();
     let res = draw_image(state, &mut encoder, &view);
     let message = handle_render_pass_err(state, res);
-    if let Some(message) = message {
-        state.handle_message(message);
-    }
+    handle_message(state, message, window);
     let (imgui_encoder, message) = state.im_state.render(window, &state.gpu, &view);
-    if let Some(message) = message {
-        state.handle_message(message);
-    }
+    handle_message(state, message, window);
     let view = state.im_state.get_texture_view();
     let res = draw_image(state, &mut encoder, &view);
     let message = handle_render_pass_err(state, res);
-    if let Some(message) = message {
-        state.handle_message(message);
-    }
+    handle_message(state, message, window);
     state.gpu.queue.submit(
         vec![
             encoder.finish(),
@@ -52,6 +50,16 @@ pub fn render(output: SurfaceTexture, state: &mut State, window: &Window) {
         .map(|encoder| encoder.unwrap())
     );
     output.present();
+}
+
+fn handle_message(state: &mut State, message: Option<Message>, window: &Window) {
+    if let Some(message) = message {
+        if let Some(message) = state.handle_message(message) {
+            match message {
+                RenderMessage::ChangeWindowLevel(window_level) => window.set_window_level(window_level),
+            }
+        }
+    }
 }
 
 fn draw_image(state: &State, encoder: &mut CommandEncoder, view: &TextureView) -> Result<(), RenderPassError> {

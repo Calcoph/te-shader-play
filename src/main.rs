@@ -19,7 +19,6 @@ fn main() {
         .with_inner_size(dpi::PhysicalSize::new(SCREEN_WIDTH, SCREEN_HEIGHT));
 
     let window = wb.build(&event_loop).expect("Couldn't create window");
-    window.set_window_level(winit::window::WindowLevel::AlwaysOnTop);
     let instance = Instance::new(InstanceDescriptor {
         backends: Backends::all(),
         flags: InstanceFlags::default(),

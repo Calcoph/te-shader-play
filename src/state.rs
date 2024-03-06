@@ -4,7 +4,7 @@ use cgmath::num_traits::ToBytes;
 use wgpu::{core::{binding_model::LateMinBufferBindingSizeMismatch, command::{DrawError, RenderPassErrorInner}, pipeline::{CreateRenderPipelineError, CreateShaderModuleError}, validation::{BindingError, StageError}}, util::{BufferInitDescriptor, DeviceExt}, BlendState, Buffer, BufferUsages, ColorTargetState, ColorWrites, Device, FragmentState, FrontFace, MultisampleState, PipelineLayout, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, Queue, RenderPipeline, RenderPipelineDescriptor, ShaderModule, ShaderModuleDescriptor, ShaderSource, ShaderStages, Surface, SurfaceConfiguration, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode};
 use winit::window::Window;
 
-use crate::imgui_state::{ImState, MeshConfig, Message, Uniforms};
+use crate::{imgui_state::{ImState, MeshConfig, Message, Uniforms}, rendering::RenderMessage};
 
 pub struct TimeKeeper {
     last_render_time: Instant,
@@ -445,7 +445,8 @@ fn fs_main() -> @location(0) vec4<f32> {
         }
     }
 
-    pub(crate) fn handle_message(&mut self, message: Message) {
+    pub(crate) fn handle_message(&mut self, message: Message) -> Option<RenderMessage> {
+        let mut render_message = None;
         match message {
             Message::ReloadShader => self.refresh_shader(),
             Message::LoadShader(shader) => {
@@ -457,7 +458,12 @@ fn fs_main() -> @location(0) vec4<f32> {
                 self.auto_enable_camera();
                 self.reload_mesh_buffers()
             },
-        }
+            Message::ChangeWindowLevel(window_level) => {
+                render_message = Some(RenderMessage::ChangeWindowLevel(window_level))
+            }
+        };
+
+        render_message
     }
 
     fn get_pipeline_layout(&mut self) -> PipelineLayout {

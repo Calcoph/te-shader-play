@@ -5,7 +5,7 @@ use imgui::{ConfigFlags, Context, Image, StyleVar, TextureId, TreeNodeFlags, Ui}
 use imgui_wgpu::{Renderer, RendererConfig, Texture as ImTexture, TextureConfig};
 use imgui_winit_support::{WinitPlatform, HiDpiMode};
 use wgpu::{core::pipeline::CreateShaderModuleError, util::{BufferInitDescriptor, DeviceExt}, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, Buffer, BufferBindingType, BufferUsages, CommandEncoder, Device, Queue, ShaderStages, TextureView};
-use winit::{window::Window as WinitWindow, event::Event};
+use winit::{event::Event, window::{Window as WinitWindow, WindowLevel}};
 
 use crate::{imgui_state::uniform_types::VecType, state::Gpu};
 
@@ -45,6 +45,7 @@ pub enum Message {
     LoadShader(String),
     ReloadPipeline,
     ReloadMeshBuffers,
+    ChangeWindowLevel(WindowLevel)
 }
 
 enum UniformEditEvent {
@@ -491,7 +492,8 @@ pub struct UiState {
     show_errors: bool,
     mesh_type: MeshType,
     pub mesh_config: MeshConfig,
-    pub show_mesh: bool
+    pub show_mesh: bool,
+    always_on_top: bool
 }
 
 impl UiState {
@@ -506,6 +508,7 @@ impl UiState {
             mesh_type: MeshType::Screen2D,
             mesh_config: MeshConfig::Screen2D,
             show_mesh: false,
+            always_on_top: false
         }
     }
 
@@ -536,6 +539,14 @@ impl UiState {
             });
             if !self.shader_exists {
                 ui.text(format!("shaders/{} doesn't exist", self.shader_name));
+            }
+            ui.separator();
+            if ui.checkbox("Show always on top", &mut self.always_on_top) {
+                if self.always_on_top {
+                    message = Some(Message::ChangeWindowLevel(WindowLevel::AlwaysOnTop))
+                } else {
+                    message = Some(Message::ChangeWindowLevel(WindowLevel::Normal))
+                }
             }
         });
 
