@@ -190,7 +190,7 @@ impl ImguiUniformSelectable for UniformValue {
                         }
                         ui.text("Pitch");
                         let mut dpitch: Deg<f32> = Rad(*pitch).into();
-                        if ui.slider(format!("##pitch_{group_index}_{binding_index}"), -89.9, -89.9, &mut dpitch.0) {
+                        if ui.slider(format!("##pitch_{group_index}_{binding_index}"), -89.9, 89.9, &mut dpitch.0) {
                             let rpitch: Rad<f32> = dpitch.into();
 
                             *pitch = rpitch.0;

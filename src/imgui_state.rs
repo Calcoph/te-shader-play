@@ -64,14 +64,9 @@ struct UniformBinding {
 }
 impl UniformBinding {
     fn bgl_entry(&self, index: u32) -> BindGroupLayoutEntry {
-        let visibility = match self.value {
-            UniformValue::BuiltIn(_) => ShaderStages::VERTEX_FRAGMENT,
-            _ => ShaderStages::FRAGMENT
-        };
-
         BindGroupLayoutEntry {
             binding: index,
-            visibility,
+            visibility: ShaderStages::VERTEX_FRAGMENT,
             ty: BindingType::Buffer {
                 ty: BufferBindingType::Uniform,
                 has_dynamic_offset: false,
