@@ -440,7 +440,9 @@ fn fs_main() -> @location(0) vec4<f32> {
     }
 
     pub(crate) fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>) {
-        self.gpu.resize(size)
+        if size.height > 1 && size.width > 1 {
+            self.gpu.resize(size)
+        }
     }
 
     pub(crate) fn handle_message(&mut self, message: Message) {
