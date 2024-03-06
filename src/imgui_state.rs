@@ -1,5 +1,6 @@
-use std::path::Path;
+use std::{array::IntoIter, iter::Chain, path::Path};
 
+use cgmath::{Deg, Matrix4, Point3, Rad, Vector4};
 use imgui::{ConfigFlags, Context, Image, StyleVar, TextureId, TreeNodeFlags, Ui};
 use imgui_wgpu::{Renderer, RendererConfig, Texture as ImTexture, TextureConfig};
 use imgui_winit_support::{WinitPlatform, HiDpiMode};
@@ -42,7 +43,8 @@ trait ImguiUniformSelectable {
 pub enum Message {
     ReloadShader,
     LoadShader(String),
-    ReloadPipeline
+    ReloadPipeline,
+    ReloadMeshBuffers,
 }
 
 enum UniformEditEvent {
@@ -62,9 +64,14 @@ struct UniformBinding {
 }
 impl UniformBinding {
     fn bgl_entry(&self, index: u32) -> BindGroupLayoutEntry {
+        let visibility = match self.value {
+            UniformValue::BuiltIn(_) => ShaderStages::VERTEX_FRAGMENT,
+            _ => ShaderStages::FRAGMENT
+        };
+
         BindGroupLayoutEntry {
             binding: index,
-            visibility: ShaderStages::FRAGMENT,
+            visibility,
             ty: BindingType::Buffer {
                 ty: BufferBindingType::Uniform,
                 has_dynamic_offset: false,
@@ -300,9 +307,67 @@ impl UniformGroup {
     }
 }
 
+pub(crate) struct CameraUniform {
+    position: Point3<f32>,
+    projection_matrix: Matrix4<f32>
+}
+
+type V4Iter = Chain<IntoIter<u8, 4>, Chain<IntoIter<u8, 4>, Chain<IntoIter<u8, 4>, IntoIter<u8, 4>>>>;
+fn get_vec4_bytes(vec4: Vector4<f32>) -> V4Iter {
+    vec4.x.to_le_bytes()
+            .into_iter()
+            .chain(
+                vec4.y.to_le_bytes()
+                .into_iter()
+                .chain(
+                    vec4.z.to_le_bytes()
+                    .into_iter()
+                    .chain(
+                        vec4.w.to_le_bytes()
+                        .into_iter()
+                    )
+                )
+            )
+}
+
+type M4Iter = Chain<V4Iter, Chain<V4Iter, Chain<V4Iter, V4Iter>>>;
+fn get_matrix4_bytes(mat4: Matrix4<f32>) -> M4Iter {
+    get_vec4_bytes(mat4.x)
+            .chain(
+                get_vec4_bytes(mat4.y)
+                .chain(
+                    get_vec4_bytes(mat4.z)
+                    .chain(
+                        get_vec4_bytes(mat4.w)
+                    )
+                )
+            )
+}
+
+impl CameraUniform {
+    pub(crate) fn to_le_bytes(&self) -> Vec<u8> {
+        let position = self.position.x.to_le_bytes()
+            .into_iter()
+            .chain(
+                self.position.y.to_le_bytes()
+                .into_iter()
+                .chain(
+                    self.position.z.to_le_bytes()
+                    .into_iter()
+                    .chain([0u8, 0u8, 0u8, 0u8]) // 4 extra bytes because alignment of vec3 = alignment of vec4 = 16 (4 extra bytes)
+                )
+            );
+
+        let projection = get_matrix4_bytes(dbg!(self.projection_matrix));
+
+        position.chain(projection).collect()
+    }
+}
+
 pub struct Uniforms {
     pub groups: Vec<UniformGroup>,
-    time_uniform_location: (usize, usize)
+    time_uniform_location: (usize, usize),
+    camera_uniform_location: (usize, usize),
 }
 
 impl Uniforms {
@@ -310,9 +375,23 @@ impl Uniforms {
         let mut group0 = UniformGroup::new(device);
         group0.add_custom(device, UniformValue::BuiltIn(BuiltinValue::Time));
         let time_uniform_location = (0, 0);
+        let mut group1 = UniformGroup::new(device);
+        let yaw: Rad<f32> = Deg(-45.0).into();
+        let pitch: Rad<f32> = Deg(-45.0).into();
+        group1.add_custom(device, UniformValue::BuiltIn(BuiltinValue::Camera {
+            position: Point3 { x: -1.5, y: 1.2, z: 0.5 },
+            yaw: yaw.0,
+            pitch: pitch.0,
+            enabled: false,
+        }));
+        let camera_uniform_location = (1, 0);
         Uniforms {
-            groups: vec![group0],
-            time_uniform_location
+            groups: vec![
+                group0,
+                group1
+            ],
+            time_uniform_location,
+            camera_uniform_location
         }
     }
 
@@ -338,6 +417,20 @@ impl Uniforms {
             0,
             &elapsed_time.to_le_bytes()
         ).unwrap();
+    }
+
+
+    pub(crate) fn enable_camera(&mut self, enable: bool) {
+        let (g_index, b_index) = self.camera_uniform_location;
+        let camera_binding = &mut self.groups[g_index].bindings[b_index];
+
+        match &mut camera_binding.value {
+            UniformValue::BuiltIn(BuiltinValue::Camera {
+                enabled,
+                ..
+            }) => *enabled = enable,
+            _ => unreachable!()
+        }
     }
 
     pub(crate) fn define_binding(&mut self, group: u32, binding: u32, device: &Device) {
@@ -373,13 +466,37 @@ impl Uniforms {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MeshType {
+    Screen2D,
+    Plane,
+    Sphere,
+    Cube,
+    Cylinder,
+    Cone,
+    Torus
+}
+
+pub enum MeshConfig {
+    Screen2D,
+    Plane((f32, f32), (u32, u32)),
+    Sphere,
+    Cube,
+    Cylinder,
+    Cone,
+    Torus
+}
+
 pub struct UiState {
     pub texture_id: TextureId,
     shader_name: String,
     shader_exists: bool,
     pub inputs: Uniforms,
     errors: Vec<String>,
-    show_errors: bool
+    show_errors: bool,
+    mesh_type: MeshType,
+    pub mesh_config: MeshConfig,
+    pub show_mesh: bool
 }
 
 impl UiState {
@@ -390,7 +507,10 @@ impl UiState {
             shader_exists: true,
             inputs: Uniforms::new(device),
             errors: vec![],
-            show_errors: false
+            show_errors: false,
+            mesh_type: MeshType::Screen2D,
+            mesh_config: MeshConfig::Screen2D,
+            show_mesh: false,
         }
     }
 
@@ -400,7 +520,10 @@ impl UiState {
         ui.window("Render").build(|| {
             let a = ui.push_style_var(StyleVar::FrameBorderSize(50.0));
             Image::new(self.texture_id, mint::Vector2{ x: IMAGE_WIDTH, y: IMAGE_HEIGHT }).border_col([1.0;4]).build(ui);
-            a.pop()
+            a.pop();
+            if self.show_mesh {
+                ui.text_colored([1.0, 0.0, 0.0, 1.0], "Mesh rendering is enabled, turn it off\nin the \"Mesh configuration\" window to see\nthe expected output")
+            }
         });
 
         ui.window("Control").build(|| {
@@ -454,6 +577,84 @@ impl UiState {
                     UniformEditEvent::ChangeMatrixSize(matrix_size, g_index, b_index) => self.inputs.change_matrix_size(matrix_size, g_index, b_index, device, queue),
                 };
                 message = Some(Message::ReloadPipeline);
+            }
+        });
+
+        ui.window("Mesh configuration").build(||{
+            if ui.checkbox("Show mesh", &mut self.show_mesh) {
+                message = Some(Message::ReloadPipeline)
+            };
+            ui.separator();
+
+            if ui.radio_button("2D whole screen", &mut self.mesh_type, MeshType::Screen2D) {
+                self.mesh_config = MeshConfig::Screen2D;
+                message = Some(Message::ReloadMeshBuffers);
+            };
+            if ui.radio_button("Plane", &mut self.mesh_type, MeshType::Plane) {
+                self.mesh_config = MeshConfig::Plane((1.0,1.0), (1,1));
+                message = Some(Message::ReloadMeshBuffers);
+            };
+            let dis = ui.begin_disabled(true);
+            if ui.radio_button("Cube", &mut self.mesh_type, MeshType::Cube) {
+                self.mesh_config = MeshConfig::Cube;
+                message = Some(Message::ReloadMeshBuffers);
+            };
+            if ui.radio_button("Sphere", &mut self.mesh_type, MeshType::Sphere) {
+                self.mesh_config = MeshConfig::Sphere;
+                message = Some(Message::ReloadMeshBuffers);
+            };
+            if ui.radio_button("Cone", &mut self.mesh_type, MeshType::Cone) {
+                self.mesh_config = MeshConfig::Cone;
+                message = Some(Message::ReloadMeshBuffers);
+            };
+            if ui.radio_button("Cylinder", &mut self.mesh_type, MeshType::Cylinder) {
+                self.mesh_config = MeshConfig::Cylinder;
+                message = Some(Message::ReloadMeshBuffers);
+            };
+            if ui.radio_button("Torus", &mut self.mesh_type, MeshType::Torus) {
+                self.mesh_config = MeshConfig::Torus;
+                message = Some(Message::ReloadMeshBuffers);
+            };
+            dis.end();
+            ui.separator();
+
+            match &mut self.mesh_config {
+                MeshConfig::Screen2D => (),
+                MeshConfig::Plane((x_size, y_size), (rows, columns)) => {
+                    let mut size = [*x_size, *y_size];
+                    if ui.input_float2("Size", &mut size).build() {
+                        *x_size = size[0];
+                        *y_size = size[1];
+                        message = Some(Message::ReloadMeshBuffers)
+                    };
+                    ui.text("Triangle resolution:");
+                    if ui.slider("Rows", 1, 1_000, rows) {
+                        message = Some(Message::ReloadMeshBuffers)
+                    };
+                    if ui.slider("Columns", 1, 1_000, columns) {
+                        message = Some(Message::ReloadMeshBuffers)
+                    };
+                },
+                MeshConfig::Sphere => {
+                    ui.input_float("Radius", &mut 0.0).build();
+                    ui.slider("Triangle count", 4, 1_000_000, &mut 0);
+                },
+                MeshConfig::Cube => {
+                    ui.input_float("Side length", &mut 0.0).build();
+                    ui.slider("Triangles per side", 2, 1_000_000, &mut 0);
+                },
+                MeshConfig::Cylinder => {
+                    ui.slider("Radius", 0.1, 1000.0, &mut 1.0);
+                    ui.slider("height", 0.1, 1000.0, &mut 3.0);
+                },
+                MeshConfig::Cone => {
+                    ui.slider("Radius", 0.1, 1000.0, &mut 1.0);
+                    ui.slider("height", 0.1, 1000.0, &mut 3.0);
+                },
+                MeshConfig::Torus => {
+                    ui.slider("Inner radius", 0.1, 1000.0, &mut 1.0);
+                    ui.slider("Outer radius", 0.1, 1000.0, &mut 0.0);
+                },
             }
         });
 

@@ -39,7 +39,7 @@ fn main() {
     let (device, queue) = pollster::block_on(adapter.request_device(
         &DeviceDescriptor {
             label: None,
-            required_features: Features::default(),
+            required_features: Features::default() | Features::POLYGON_MODE_LINE,
             required_limits: Limits::downlevel_webgl2_defaults()
         },
         None

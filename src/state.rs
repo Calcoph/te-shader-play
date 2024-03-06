@@ -1,9 +1,10 @@
 use std::{borrow::Cow, path::Path, time::{Duration, Instant}};
 
-use wgpu::{core::{binding_model::LateMinBufferBindingSizeMismatch, command::{DrawError, RenderPassErrorInner}, pipeline::{CreateRenderPipelineError, CreateShaderModuleError}, validation::{BindingError, StageError}}, BlendState, ColorTargetState, ColorWrites, Device, FragmentState, FrontFace, MultisampleState, PipelineLayout, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, Queue, RenderPipeline, RenderPipelineDescriptor, ShaderModule, ShaderModuleDescriptor, ShaderSource, ShaderStages, Surface, SurfaceConfiguration, VertexState};
+use cgmath::num_traits::ToBytes;
+use wgpu::{core::{binding_model::LateMinBufferBindingSizeMismatch, command::{DrawError, RenderPassErrorInner}, pipeline::{CreateRenderPipelineError, CreateShaderModuleError}, validation::{BindingError, StageError}}, util::{BufferInitDescriptor, DeviceExt}, BlendState, Buffer, BufferUsages, ColorTargetState, ColorWrites, Device, FragmentState, FrontFace, MultisampleState, PipelineLayout, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, Queue, RenderPipeline, RenderPipelineDescriptor, ShaderModule, ShaderModuleDescriptor, ShaderSource, ShaderStages, Surface, SurfaceConfiguration, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode};
 use winit::window::Window;
 
-use crate::imgui_state::{ImState, Message, Uniforms};
+use crate::imgui_state::{ImState, MeshConfig, Message, Uniforms};
 
 pub struct TimeKeeper {
     last_render_time: Instant,
@@ -61,13 +62,152 @@ struct Shader {
     shader: ShaderModule
 }
 
+pub struct Vertex {
+    x: f32,
+    y: f32,
+    z: f32
+}
+impl Vertex {
+    fn to_le_bytes(&self) -> Vec<u8> {
+        self.x.to_le_bytes()
+            .into_iter()
+            .chain(
+                self.y.to_le_bytes()
+                    .into_iter()
+                    .chain(
+                        self.z.to_le_bytes()
+                           .into_iter()
+                    )
+            ).collect()
+    }
+}
+
+pub struct Vertices {
+    pub vertex_buffer: Buffer,
+    pub vertices: Vec<Vertex>,
+    pub index_buffer: Buffer,
+    pub indices: Vec<u32>,
+}
+
+impl Vertices {
+    fn default_vertices() -> (Vec<Vertex>, Vec<u32>) {
+        Self::screen_2d_vertices()
+    }
+
+    fn screen_2d_vertices() -> (Vec<Vertex>, Vec<u32>) {
+        (vec![
+            Vertex {
+                x: -1.0,
+                y: 1.0,
+                z: 0.0
+            },
+            Vertex {
+                x: 1.0,
+                y: 1.0,
+                z: 0.0
+            },
+            Vertex {
+                x: -1.0,
+                y: -1.0,
+                z: 0.0
+            },
+            Vertex {
+                x: 1.0,
+                y: -1.0,
+                z: 0.0
+            }
+        ],
+        vec![
+            0, 2, 3,
+            0, 3, 1
+        ])
+    }
+
+    fn switch(&mut self, mesh_config: &MeshConfig, device: &Device) {
+        let (vertices, indices) = match mesh_config {
+            MeshConfig::Screen2D => Self::screen_2d_vertices(),
+            MeshConfig::Plane(size, resolution) => Self::plane_vertices(*size, *resolution),
+            MeshConfig::Sphere => todo!(),
+            MeshConfig::Cube => todo!(),
+            MeshConfig::Cylinder => todo!(),
+            MeshConfig::Cone => todo!(),
+            MeshConfig::Torus => todo!(),
+        };
+
+        self.vertices = vertices;
+        self.indices = indices;
+
+        self.vertex_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("vertex buffer"),
+            contents: &self.vertices.iter().map(|vert| vert.to_le_bytes()).flatten().collect::<Vec<_>>(),
+            usage: BufferUsages::VERTEX,
+        }).unwrap();
+
+        self.index_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("index buffer"),
+            contents: &self.indices.iter().map(|vert| vert.to_le_bytes()).flatten().collect::<Vec<_>>(),
+            usage: BufferUsages::INDEX,
+        }).unwrap();
+    }
+
+    fn plane_vertices(size: (f32, f32), resolution: (u32, u32)) -> (Vec<Vertex>, Vec<u32>) {
+        let mut points = Vec::new();
+        for z in 0..=resolution.1 {
+            for x in 0..=resolution.0 {
+                let x = (x as f32 / (resolution.0 as f32) - 1.0) * size.0;
+                let z = (z as f32 / (resolution.1 as f32) - 1.0) * size.1;
+                let vertex = Vertex {
+                    x,
+                    y: 0.0,
+                    z,
+                };
+                points.push(vertex)
+            }
+        }
+
+        let mut triangles: Vec<u32> = Vec::new();
+        for i in 0..resolution.1 {
+            for j in 0..resolution.0 {
+                // 2 triangles per square
+                let row = i * (resolution.0 + 1);
+                let next_row = (i+1) * (resolution.0 + 1);
+                let column = j;
+                let next_column = j+1;
+
+                // Triangle 1
+                // p1 -> .-. <- p2
+                //        \|
+                //         . <- p3
+                let t1_p1 = next_row + column;
+                let t1_p2 = next_row + next_column;
+                let t1_p3 = row + next_column;
+                let triangle_1 = [t1_p1, t1_p2, t1_p3];
+
+                // Triangle 2
+                // p1 -> .
+                //       |\
+                // p2 -> .-. <- p3
+                let t2_p1 = next_row + column;
+                let t2_p2 = row + column;
+                let t2_p3 = row + next_column;
+                let triangle_2 = [t2_p1, t2_p2, t2_p3];
+
+                triangles.extend(triangle_1.iter().chain(triangle_2.iter()))
+            }
+        }
+
+        (points, triangles)
+    }
+}
+
 pub struct State<'surface> {
     pub gpu: Gpu<'surface>,
     pub pipeline: RenderPipeline,
     pub time: TimeKeeper,
     pub im_state: ImState,
     current_shader_path: String,
-    current_shader: Shader
+    current_shader: Shader,
+    pub vertices: Vertices,
 }
 
 impl<'surface> State<'surface> {
@@ -128,13 +268,28 @@ fn fs_main() -> @location(0) vec4<f32> {
             contents: current_shader,
             shader: shader
         };
+        let (vertices, indices) = Vertices::default_vertices();
         let mut state = State {
             time,
-            gpu,
             pipeline,
             im_state,
             current_shader_path: "shader.wgsl".into(),
-            current_shader
+            current_shader,
+            vertices: Vertices {
+                vertex_buffer: gpu.device.create_buffer_init(&BufferInitDescriptor {
+                    label: Some("Vertex buffer"),
+                    contents: &vertices.iter().map(|vert| vert.to_le_bytes()).flatten().collect::<Vec<_>>(),
+                    usage: BufferUsages::VERTEX
+                }).unwrap(),
+                vertices: vertices,
+                index_buffer: gpu.device.create_buffer_init(&BufferInitDescriptor {
+                    label: Some("Index buffer"),
+                    contents: &indices.iter().map(|ind| (*ind).to_le_bytes()).flatten().collect::<Vec<_>>(),
+                    usage: BufferUsages::INDEX
+                }).unwrap(),
+                indices,
+            },
+            gpu,
         };
         state.refresh_pipeline();
 
@@ -148,13 +303,30 @@ fn fs_main() -> @location(0) vec4<f32> {
 
     fn recreate_pipeline(&mut self) -> RenderPipeline {
         let layout = self.get_pipeline_layout();
+        let poly_mode = if self.im_state.ui.show_mesh {
+            PolygonMode::Line
+        } else {
+            PolygonMode::Fill
+        };
         match self.gpu.device.create_render_pipeline(&RenderPipelineDescriptor {
             label: None,
             layout: Some(&layout),
             vertex: VertexState {
                 module: &self.current_shader.shader,
                 entry_point: "vs_main",
-                buffers: &[],
+                buffers: &[
+                    VertexBufferLayout {
+                        array_stride: std::mem::size_of::<f32>() as u64 * 3,
+                        step_mode: VertexStepMode::Vertex,
+                        attributes: &[
+                            VertexAttribute {
+                                format: VertexFormat::Float32x3,
+                                offset: 0,
+                                shader_location: 0,
+                            }
+                        ],
+                    }
+                ],
             },
             primitive: PrimitiveState {
                 topology: PrimitiveTopology::TriangleList,
@@ -162,7 +334,7 @@ fn fs_main() -> @location(0) vec4<f32> {
                 front_face: FrontFace::Ccw,
                 cull_mode: None,
                 unclipped_depth: false,
-                polygon_mode: PolygonMode::Fill,
+                polygon_mode: poly_mode,
                 conservative: false,
             },
             depth_stencil: None,
@@ -279,6 +451,10 @@ fn fs_main() -> @location(0) vec4<f32> {
                 self.refresh_shader();
             },
             Message::ReloadPipeline => self.refresh_pipeline(),
+            Message::ReloadMeshBuffers => {
+                self.auto_enable_camera();
+                self.reload_mesh_buffers()
+            },
         }
     }
 
@@ -316,6 +492,9 @@ fn fs_main() -> @location(0) vec4<f32> {
                     shader_size,
                     ..
                 }) => {
+                    dbg!(group_index);
+                    dbg!(compact_index);
+                    dbg!(shader_size);
                     self.im_state.ui.inputs.change_binding_size(
                         *group_index as usize,
                         *compact_index,
@@ -328,6 +507,17 @@ fn fs_main() -> @location(0) vec4<f32> {
                 _ => todo!(),
             },
             _ => None
+        }
+    }
+
+    fn reload_mesh_buffers(&mut self) {
+        self.vertices.switch(&self.im_state.ui.mesh_config, &self.gpu.device)
+    }
+
+    fn auto_enable_camera(&mut self) {
+        match self.im_state.ui.mesh_config {
+            MeshConfig::Screen2D => self.im_state.ui.inputs.enable_camera(false),
+            _ => self.im_state.ui.inputs.enable_camera(true),
         }
     }
 }

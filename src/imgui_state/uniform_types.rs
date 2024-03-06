@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 
+use cgmath::{Deg, InnerSpace, Matrix4, Point3, Rad, Vector3};
 use imgui::Ui;
 
 use crate::imgui_state::UniformEditEvent;
@@ -7,21 +8,64 @@ use crate::imgui_state::UniformEditEvent;
 pub(crate) use self::{matrix::MatrixType, scalar::{ScalarType, ScalarUniformValue}, vec::VecType};
 use self::{matrix::MatrixUniformValue, transform::TransformUniformValue, vec::VectorUniformValue};
 
-use super::{ImguiMatrix, ImguiScalar, ImguiUniformSelectable, ImguiVec, DEFAULT_U32_UNIFORM};
+use super::{CameraUniform, ImguiMatrix, ImguiScalar, ImguiUniformSelectable, ImguiVec, DEFAULT_U32_UNIFORM};
 
 mod scalar;
 mod vec;
 mod matrix;
 mod transform;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum BuiltinValue {
-    Time
+    Time,
+    Camera {
+        position: Point3<f32>,
+        yaw: f32,
+        pitch: f32,
+        enabled: bool
+    },
 }
 impl BuiltinValue {
     fn to_le_bytes(&self) -> Vec<u8> {
         match self {
             BuiltinValue::Time => 0u32.to_le_bytes().into(),
+            BuiltinValue::Camera {..} => self.calc_matrix().to_le_bytes(),
+        }
+    }
+
+    fn calc_matrix(&self) -> CameraUniform {
+        match self {
+            BuiltinValue::Camera { position, yaw, pitch, enabled } => {
+                let projection_matrix = if *enabled {
+                    let view = Matrix4::look_to_rh(
+                        *position,
+                        Vector3::new(
+                            yaw.cos() * pitch.cos(),
+                            pitch.sin(),
+                            yaw.sin() * pitch.cos(),
+                        )
+                        .normalize(),
+                        Vector3::unit_y(),
+                    );
+
+                    let projection = cgmath::perspective(Rad::from(Deg(45.0)), 1.0, 0.1, 100.0);
+
+                    projection * view
+                } else {
+                    Matrix4::new(
+                        1.0, 0.0, 0.0, 0.0,
+                        0.0, 1.0, 0.0, 0.0,
+                        0.0, 0.0, 1.0, 0.0,
+                        0.0, 0.0, 0.0, 1.0
+                    )
+                };
+
+                CameraUniform {
+                    position: *position,
+                    projection_matrix,
+                }
+            },
+            _ => unreachable!()
         }
     }
 }
@@ -111,6 +155,49 @@ impl ImguiUniformSelectable for UniformValue {
                 BuiltinValue::Time => {
                     ui.text(format!("({binding_index}) Time (u32)"));
                     None
+                },
+                BuiltinValue::Camera {
+                    position,
+                    yaw,
+                    pitch,
+                    enabled,
+                } => {
+                    let mut message = None;
+                    ui.text(format!("({binding_index}) Camera (struct {{vec4<f32>, mat4x4<f32>}})"));
+                    if ui.checkbox("Enabled", enabled) {
+                        message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
+                    }
+                    if *enabled {
+                        ui.text("Position (x,y,z):");
+                        ui.indent();
+                        let mut pos = [position.x, position.y, position.z];
+                        if ui.input_float3(format!("##camera_{group_index}_{binding_index}"), &mut pos).build() {
+                            *position = Point3 {
+                                x: pos[0],
+                                y: pos[1],
+                                z: pos[2]
+                            };
+                            message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
+                        };
+                        ui.unindent();
+                        ui.text("Yaw");
+                        let mut dyaw: Deg<f32> = Rad(*yaw).into();
+                        if ui.slider(format!("##yaw_{group_index}_{binding_index}"), -89.9, 89.9, &mut dyaw.0) {
+                            let ryaw: Rad<f32> = dyaw.into();
+
+                            *yaw = ryaw.0;
+                            message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
+                        }
+                        ui.text("Pitch");
+                        let mut dpitch: Deg<f32> = Rad(*pitch).into();
+                        if ui.slider(format!("##pitch_{group_index}_{binding_index}"), -89.9, -89.9, &mut dpitch.0) {
+                            let rpitch: Rad<f32> = dpitch.into();
+
+                            *pitch = rpitch.0;
+                            message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
+                        }
+                    }
+                    message
                 },
             },
             UniformValue::Scalar(s) => s.show_editor(ui, group_index, binding_index, val_name),

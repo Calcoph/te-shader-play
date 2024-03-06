@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use wgpu::{core::command::{RenderPassError, RenderPassErrorInner}, Color, CommandEncoder, CommandEncoderDescriptor, LoadOp, Operations, RenderPassColorAttachment, RenderPassDescriptor, StoreOp, SurfaceTexture, TextureView};
+use wgpu::{core::command::{RenderPassError, RenderPassErrorInner}, Color, CommandEncoder, CommandEncoderDescriptor, IndexFormat, LoadOp, Operations, RenderPassColorAttachment, RenderPassDescriptor, StoreOp, SurfaceTexture, TextureView};
 use winit::window::Window;
 
 use crate::State;
@@ -79,6 +79,8 @@ fn draw_image(state: &State, encoder: &mut CommandEncoder, view: &TextureView) -
         render_pass.set_bind_group(g_index as u32, &group.bind_group, &[]);
     }
 
-    render_pass.draw(0..3, 0..2);
+    render_pass.set_vertex_buffer(0, state.vertices.vertex_buffer.slice(..));
+    render_pass.set_index_buffer(state.vertices.index_buffer.slice(..), IndexFormat::Uint32);
+    render_pass.draw_indexed(0..state.vertices.indices.len() as u32, 0, 0..1);
     render_pass.encode()
 }

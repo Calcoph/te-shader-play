@@ -3,21 +3,29 @@ struct VertexOutput {
     @location(0) uv: vec2<f32>
 };
 
-@vertex
-fn vs_main(@builtin(vertex_index) v_index: u32, @builtin(instance_index) i_index: u32) -> VertexOutput {
-    var out: VertexOutput;
-    let impar = i32(v_index) & 1;
-    let f_inst = f32(i_index);
-    let x = (-1.0 + 2.0*step(0.5, f_inst)) * (f_inst - f32(impar));
-    let y = (-1.0 + 2.0*step(0.5, f_inst)) * (f_inst - step(2.0, f32(v_index)));
+struct VertexInput {
+    @location(0) pos: vec3<f32>
+}
 
-    out.clip_position = vec4<f32>(x * 2.0 - 1.0, y * 2.0 - 1.0, 0.0, 1.0);
-    out.uv = out.clip_position.xy;
-    return out;
+struct Camera {
+    @location(0) pos: vec3<f32>,
+    @location(1) projection: mat4x4<f32>
 }
 
 @group(0) @binding(0)
 var<uniform> millis: u32;
+@group(1) @binding(0)
+var<uniform> camera: Camera;
+
+@vertex
+fn vs_main(inp: VertexInput) -> VertexOutput {
+    var out: VertexOutput;
+    var pos = inp.pos;
+
+    out.uv = pos.xz;
+    out.clip_position = camera.projection * vec4<f32>(pos.x, pos.y, pos.z, 1.0);
+    return out;
+}
 
 
 // Fragment shader credit: kishimisu on youtube
