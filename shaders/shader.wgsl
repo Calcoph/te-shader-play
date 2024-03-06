@@ -9,7 +9,8 @@ struct VertexInput {
 
 struct Camera {
     @location(0) pos: vec3<f32>,
-    @location(1) projection: mat4x4<f32>
+    @location(1) projection: mat4x4<f32>,
+    @location(2) view: mat4x4<f32>
 }
 
 @group(0) @binding(0)
@@ -23,7 +24,7 @@ fn vs_main(inp: VertexInput) -> VertexOutput {
     var pos = inp.pos;
 
     out.uv = pos.xz;
-    out.clip_position = camera.projection * vec4<f32>(pos.x, pos.z, pos.y, 1.0);
+    out.clip_position = camera.projection * camera.view * vec4<f32>(pos.x, pos.z, pos.y, 1.0);
     return out;
 }
 

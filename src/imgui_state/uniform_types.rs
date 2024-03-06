@@ -36,7 +36,7 @@ impl BuiltinValue {
     fn calc_matrix(&self) -> CameraUniform {
         match self {
             BuiltinValue::Camera { position, yaw, pitch, enabled } => {
-                let projection_matrix = if *enabled {
+                let (view_matrix, projection_matrix) = if *enabled {
                     let view = Matrix4::look_to_rh(
                         *position,
                         Vector3::new(
@@ -50,18 +50,25 @@ impl BuiltinValue {
 
                     let projection = cgmath::perspective(Rad::from(Deg(45.0)), 1.0, 0.1, 100.0);
 
-                    projection * view
+                    (view, projection)
                 } else {
+                    (Matrix4::new(
+                        1.0, 0.0, 0.0, 0.0,
+                        0.0, 1.0, 0.0, 0.0,
+                        0.0, 0.0, 1.0, 0.0,
+                        0.0, 0.0, 0.0, 1.0
+                    ),
                     Matrix4::new(
                         1.0, 0.0, 0.0, 0.0,
                         0.0, 1.0, 0.0, 0.0,
                         0.0, 0.0, 1.0, 0.0,
                         0.0, 0.0, 0.0, 1.0
-                    )
+                    ))
                 };
 
                 CameraUniform {
                     position: *position,
+                    view_matrix,
                     projection_matrix,
                 }
             },
@@ -163,7 +170,7 @@ impl ImguiUniformSelectable for UniformValue {
                     enabled,
                 } => {
                     let mut message = None;
-                    ui.text(format!("({binding_index}) Camera (struct {{vec4<f32>, mat4x4<f32>}})"));
+                    ui.text(format!("({binding_index}) Camera (struct {{vec4<f32>, mat4x4<f32>, mat4x4<f32>}})"));
                     if ui.checkbox("Enabled", enabled) {
                         message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                     }

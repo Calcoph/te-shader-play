@@ -305,6 +305,7 @@ impl UniformGroup {
 
 pub(crate) struct CameraUniform {
     position: Point3<f32>,
+    view_matrix: Matrix4<f32>,
     projection_matrix: Matrix4<f32>
 }
 
@@ -354,9 +355,10 @@ impl CameraUniform {
                 )
             );
 
-        let projection = get_matrix4_bytes(dbg!(self.projection_matrix));
+        let projection = get_matrix4_bytes(self.projection_matrix);
+        let view = get_matrix4_bytes(self.view_matrix);
 
-        position.chain(projection).collect()
+        position.chain(projection.chain(view)).collect()
     }
 }
 
