@@ -3,9 +3,18 @@ use std::{array::IntoIter, iter::Chain, path::Path};
 use cgmath::{Deg, Matrix4, Point3, Rad, Vector4};
 use imgui::{ConfigFlags, Context, Image, StyleVar, TextureId, TreeNodeFlags, Ui};
 use imgui_wgpu::{Renderer, RendererConfig, Texture as ImTexture, TextureConfig};
-use imgui_winit_support::{WinitPlatform, HiDpiMode};
-use wgpu::{core::pipeline::CreateShaderModuleError, util::{BufferInitDescriptor, DeviceExt}, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, Buffer, BufferBindingType, BufferUsages, CommandEncoder, Device, Queue, ShaderStages, TextureView};
-use winit::{event::Event, window::{Window as WinitWindow, WindowLevel}};
+use imgui_winit_support::{HiDpiMode, WinitPlatform};
+use wgpu::{
+    core::pipeline::CreateShaderModuleError,
+    util::{BufferInitDescriptor, DeviceExt},
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
+    BindGroupLayoutEntry, BindingType, Buffer, BufferBindingType, BufferUsages, CommandEncoder,
+    Device, Queue, ShaderStages, TextureView,
+};
+use winit::{
+    event::Event,
+    window::{Window as WinitWindow, WindowLevel},
+};
 
 use crate::{imgui_state::uniform_types::VecType, state::Gpu};
 
@@ -36,7 +45,13 @@ trait ImguiMatrix {
 
 trait ImguiUniformSelectable {
     fn cast_to(&self, casted_type: UniformType) -> UniformValue;
-    fn show_editor(&mut self, ui: &Ui, group_index: usize, binding_index: usize, val_name: &mut String) -> Option<UniformEditEvent>;
+    fn show_editor(
+        &mut self,
+        ui: &Ui,
+        group_index: usize,
+        binding_index: usize,
+        val_name: &mut String,
+    ) -> Option<UniformEditEvent>;
     fn to_le_bytes(&self) -> Vec<u8>;
 }
 
@@ -45,7 +60,7 @@ pub enum Message {
     LoadShader(String),
     ReloadPipeline,
     ReloadMeshBuffers,
-    ChangeWindowLevel(WindowLevel)
+    ChangeWindowLevel(WindowLevel),
 }
 
 enum UniformEditEvent {
@@ -61,7 +76,7 @@ enum UniformEditEvent {
 struct UniformBinding {
     pub buffer: Buffer,
     value: UniformValue,
-    name: String
+    name: String,
 }
 impl UniformBinding {
     fn bgl_entry(&self, index: u32) -> BindGroupLayoutEntry {
@@ -71,9 +86,9 @@ impl UniformBinding {
             ty: BindingType::Buffer {
                 ty: BufferBindingType::Uniform,
                 has_dynamic_offset: false,
-                min_binding_size: None
+                min_binding_size: None,
             },
-            count: None
+            count: None,
         }
     }
 
@@ -87,16 +102,18 @@ impl UniformBinding {
     fn new(device: &Device, value: UniformValue) -> UniformBinding {
         let contents = value.to_le_bytes();
 
-        let buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("new uniform buffer"),
-            contents: &contents,
-            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-        }).unwrap();
+        let buffer = device
+            .create_buffer_init(&BufferInitDescriptor {
+                label: Some("new uniform buffer"),
+                contents: &contents,
+                usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            })
+            .unwrap();
 
         UniformBinding {
             buffer,
             value,
-            name: "unnamed".to_string()
+            name: "unnamed".to_string(),
         }
     }
 
@@ -108,18 +125,26 @@ impl UniformBinding {
         self.value = new_value;
         let new_bytes = self.value.to_le_bytes();
         if new_bytes.len() != old_size {
-            self.buffer = device.create_buffer_init(&BufferInitDescriptor {
-                label: Some("Resized buffer"),
-                contents: &new_bytes,
-                usage: BufferUsages::COPY_DST | BufferUsages::UNIFORM,
-            }).unwrap();
+            self.buffer = device
+                .create_buffer_init(&BufferInitDescriptor {
+                    label: Some("Resized buffer"),
+                    contents: &new_bytes,
+                    usage: BufferUsages::COPY_DST | BufferUsages::UNIFORM,
+                })
+                .unwrap();
         } else {
             queue.write_buffer(&self.buffer, 0, &new_bytes).unwrap();
         }
     }
 
-    fn show_editor(&mut self, ui: &Ui, group_index: usize, binding_index: usize) -> Option<UniformEditEvent> {
-        self.value.show_editor(ui, group_index, binding_index, &mut self.name)
+    fn show_editor(
+        &mut self,
+        ui: &Ui,
+        group_index: usize,
+        binding_index: usize,
+    ) -> Option<UniformEditEvent> {
+        self.value
+            .show_editor(ui, group_index, binding_index, &mut self.name)
     }
 
     fn decrease(&mut self, queue: &Queue) {
@@ -155,6 +180,7 @@ impl UniformBinding {
         4x3: 12*f32 = 12*4 = 48
         4x4: 16*f32 = 16*4 = 64
         */
+        #[rustfmt::skip]
         const DEFAULT_SIZEN_TYPE: &[Option<UniformType>] = &[
             None,None,None, None, // sizes 0..=3 don't have any default value
             Some(UniformType::Scalar(ScalarType::F32)), // Size 4
@@ -178,17 +204,48 @@ impl UniformBinding {
         ];
         // Make sure that I've coutned correctly
         // TODO: Make this into a test
-        assert_eq!(DEFAULT_SIZEN_TYPE[4], Some(UniformType::Scalar(ScalarType::F32)));
-        assert_eq!(DEFAULT_SIZEN_TYPE[8], Some(UniformType::Vec(VecType::Vec2(ScalarType::F32))));
-        assert_eq!(DEFAULT_SIZEN_TYPE[12], Some(UniformType::Vec(VecType::Vec3(ScalarType::F32))));
-        assert_eq!(DEFAULT_SIZEN_TYPE[16], Some(UniformType::Vec(VecType::Vec4(ScalarType::F32))));
-        assert_eq!(DEFAULT_SIZEN_TYPE[24], Some(UniformType::Matrix(MatrixType::M2x3)));
-        assert_eq!(DEFAULT_SIZEN_TYPE[32], Some(UniformType::Matrix(MatrixType::M2x4)));
-        assert_eq!(DEFAULT_SIZEN_TYPE[36], Some(UniformType::Matrix(MatrixType::M3x3)));
-        assert_eq!(DEFAULT_SIZEN_TYPE[48], Some(UniformType::Matrix(MatrixType::M3x4)));
-        assert_eq!(DEFAULT_SIZEN_TYPE[64], Some(UniformType::Matrix(MatrixType::M4x4)));
+        assert_eq!(
+            DEFAULT_SIZEN_TYPE[4],
+            Some(UniformType::Scalar(ScalarType::F32))
+        );
+        assert_eq!(
+            DEFAULT_SIZEN_TYPE[8],
+            Some(UniformType::Vec(VecType::Vec2(ScalarType::F32)))
+        );
+        assert_eq!(
+            DEFAULT_SIZEN_TYPE[12],
+            Some(UniformType::Vec(VecType::Vec3(ScalarType::F32)))
+        );
+        assert_eq!(
+            DEFAULT_SIZEN_TYPE[16],
+            Some(UniformType::Vec(VecType::Vec4(ScalarType::F32)))
+        );
+        assert_eq!(
+            DEFAULT_SIZEN_TYPE[24],
+            Some(UniformType::Matrix(MatrixType::M2x3))
+        );
+        assert_eq!(
+            DEFAULT_SIZEN_TYPE[32],
+            Some(UniformType::Matrix(MatrixType::M2x4))
+        );
+        assert_eq!(
+            DEFAULT_SIZEN_TYPE[36],
+            Some(UniformType::Matrix(MatrixType::M3x3))
+        );
+        assert_eq!(
+            DEFAULT_SIZEN_TYPE[48],
+            Some(UniformType::Matrix(MatrixType::M3x4))
+        );
+        assert_eq!(
+            DEFAULT_SIZEN_TYPE[64],
+            Some(UniformType::Matrix(MatrixType::M4x4))
+        );
         assert_eq!(DEFAULT_SIZEN_TYPE.len(), 65);
-        self.change_type(DEFAULT_SIZEN_TYPE.get(new_size as usize).unwrap().unwrap(), queue, device)
+        self.change_type(
+            DEFAULT_SIZEN_TYPE.get(new_size as usize).unwrap().unwrap(),
+            queue,
+            device,
+        )
     }
 
     fn change_matrix_size(&mut self, matrix_size: MatrixType, queue: &Queue) {
@@ -204,15 +261,19 @@ pub struct UniformGroup {
 }
 
 impl UniformGroup {
-    fn new(device: &Device) -> UniformGroup{
-        let bg = device.create_bind_group(&BindGroupDescriptor {
-            label: None,
-            layout: &device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-                label: Some("Automaticall created layout in new"),
+    fn new(device: &Device) -> UniformGroup {
+        let bg = device
+            .create_bind_group(&BindGroupDescriptor {
+                label: None,
+                layout: &device
+                    .create_bind_group_layout(&BindGroupLayoutDescriptor {
+                        label: Some("Automaticall created layout in new"),
+                        entries: &[],
+                    })
+                    .unwrap(),
                 entries: &[],
-            }).unwrap(),
-            entries: &[],
-        }).unwrap();
+            })
+            .unwrap();
 
         UniformGroup {
             bindings: Vec::new(),
@@ -226,14 +287,17 @@ impl UniformGroup {
             entries.push(binding.bgl_entry(index as u32))
         }
 
-        device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            label: Some("Automatically created layout in bg_layout"),
-            entries: &entries,
-        }).unwrap()
+        device
+            .create_bind_group_layout(&BindGroupLayoutDescriptor {
+                label: Some("Automatically created layout in bg_layout"),
+                entries: &entries,
+            })
+            .unwrap()
     }
 
     fn add_f32(&mut self, device: &Device) {
-        self.bindings.push(UniformBinding::new(device, DEFAULT_UNIFORM));
+        self.bindings
+            .push(UniformBinding::new(device, DEFAULT_UNIFORM));
         self.refresh_bind_group(device)
     }
 
@@ -244,7 +308,9 @@ impl UniformGroup {
 
     fn update_buffer(&mut self, b_index: usize, queue: &Queue) {
         let binding = &mut self.bindings[b_index];
-        queue.write_buffer(&binding.buffer, 0, &binding.value.to_le_bytes()).unwrap();
+        queue
+            .write_buffer(&binding.buffer, 0, &binding.value.to_le_bytes())
+            .unwrap();
     }
 
     fn refresh_bind_group(&mut self, device: &Device) {
@@ -253,17 +319,21 @@ impl UniformGroup {
         for (index, binding) in self.bindings.iter().enumerate() {
             layout_entries.push(binding.bgl_entry(index as u32));
             bindgroup_entries.push(binding.bg_entry(index as u32));
-        };
+        }
 
-        let layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            label: Some("Autogenerated bind group layout in refresh_bind_group"),
-            entries: &layout_entries,
-        }).unwrap();
-        let bg = device.create_bind_group(&BindGroupDescriptor {
-            label: Some("Autogenerated bind group in refresh_bind_group"),
-            layout: &layout,
-            entries: &bindgroup_entries,
-        }).unwrap();
+        let layout = device
+            .create_bind_group_layout(&BindGroupLayoutDescriptor {
+                label: Some("Autogenerated bind group layout in refresh_bind_group"),
+                entries: &layout_entries,
+            })
+            .unwrap();
+        let bg = device
+            .create_bind_group(&BindGroupDescriptor {
+                label: Some("Autogenerated bind group in refresh_bind_group"),
+                layout: &layout,
+                entries: &bindgroup_entries,
+            })
+            .unwrap();
 
         self.bind_group = bg;
     }
@@ -274,7 +344,13 @@ impl UniformGroup {
         }
     }
 
-    fn change_type(&mut self, unitype: UniformType, b_index: usize, queue: &Queue, device: &Device) {
+    fn change_type(
+        &mut self,
+        unitype: UniformType,
+        b_index: usize,
+        queue: &Queue,
+        device: &Device,
+    ) {
         self.bindings[b_index].change_type(unitype, queue, device);
         self.refresh_bind_group(device);
     }
@@ -287,17 +363,35 @@ impl UniformGroup {
         self.bindings[b_index].decrease(queue)
     }
 
-    fn change_inner_type(&mut self, inner_type: ScalarType, b_index: usize, device: &Device, queue: &Queue) {
+    fn change_inner_type(
+        &mut self,
+        inner_type: ScalarType,
+        b_index: usize,
+        device: &Device,
+        queue: &Queue,
+    ) {
         self.bindings[b_index].change_inner_type(inner_type, queue);
         self.refresh_bind_group(device);
     }
 
-    fn change_binding_size(&mut self, b_index: usize, new_size: u64, device: &Device, queue: &Queue) {
+    fn change_binding_size(
+        &mut self,
+        b_index: usize,
+        new_size: u64,
+        device: &Device,
+        queue: &Queue,
+    ) {
         self.bindings[b_index].change_binding_size(new_size, device, queue);
         self.refresh_bind_group(device);
     }
 
-    fn change_matrix_size(&mut self, matrix_size: MatrixType, b_index: usize, device: &Device, queue: &Queue) {
+    fn change_matrix_size(
+        &mut self,
+        matrix_size: MatrixType,
+        b_index: usize,
+        device: &Device,
+        queue: &Queue,
+    ) {
         self.bindings[b_index].change_matrix_size(matrix_size, queue);
         self.refresh_bind_group(device);
     }
@@ -311,26 +405,31 @@ pub(crate) struct CameraUniform {
     inverse_projection_matrix: Matrix4<f32>,
 }
 
-type V4Iter = Chain<Chain<Chain<IntoIter<u8, 4>, IntoIter<u8, 4>>, IntoIter<u8, 4>>, IntoIter<u8, 4>>;
+type V4Iter =
+    Chain<Chain<Chain<IntoIter<u8, 4>, IntoIter<u8, 4>>, IntoIter<u8, 4>>, IntoIter<u8, 4>>;
 fn get_vec4_bytes(vec4: Vector4<f32>) -> V4Iter {
-    vec4.x.to_le_bytes()
-            .into_iter()
-            .chain(vec4.y.to_le_bytes())
-            .chain(vec4.z.to_le_bytes())
-            .chain(vec4.w.to_le_bytes())
+    vec4.x
+        .to_le_bytes()
+        .into_iter()
+        .chain(vec4.y.to_le_bytes())
+        .chain(vec4.z.to_le_bytes())
+        .chain(vec4.w.to_le_bytes())
 }
 
 type M4Iter = Chain<Chain<Chain<V4Iter, V4Iter>, V4Iter>, V4Iter>;
 fn get_matrix4_bytes(mat4: Matrix4<f32>) -> M4Iter {
     get_vec4_bytes(mat4.x)
-            .chain(get_vec4_bytes(mat4.y))
-            .chain(get_vec4_bytes(mat4.z))
-            .chain(get_vec4_bytes(mat4.w))
+        .chain(get_vec4_bytes(mat4.y))
+        .chain(get_vec4_bytes(mat4.z))
+        .chain(get_vec4_bytes(mat4.w))
 }
 
 impl CameraUniform {
     pub(crate) fn to_le_bytes(&self) -> Vec<u8> {
-        let position = self.position.x.to_le_bytes()
+        let position = self
+            .position
+            .x
+            .to_le_bytes()
             .into_iter()
             .chain(self.position.y.to_le_bytes())
             .chain(self.position.z.to_le_bytes())
@@ -341,7 +440,8 @@ impl CameraUniform {
         let inverse_view = get_matrix4_bytes(self.inverse_view_matrix);
         let inverse_proj = get_matrix4_bytes(self.inverse_projection_matrix);
 
-        position.chain(projection)
+        position
+            .chain(projection)
             .chain(view)
             .chain(inverse_view)
             .chain(inverse_proj)
@@ -363,20 +463,24 @@ impl Uniforms {
         let mut group1 = UniformGroup::new(device);
         let yaw: Rad<f32> = Deg(-45.0).into();
         let pitch: Rad<f32> = Deg(-45.0).into();
-        group1.add_custom(device, UniformValue::BuiltIn(BuiltinValue::Camera {
-            position: Point3 { x: -1.5, y: 1.2, z: 0.5 },
-            yaw: yaw.0,
-            pitch: pitch.0,
-            enabled: false,
-        }));
+        group1.add_custom(
+            device,
+            UniformValue::BuiltIn(BuiltinValue::Camera {
+                position: Point3 {
+                    x: -1.5,
+                    y: 1.2,
+                    z: 0.5,
+                },
+                yaw: yaw.0,
+                pitch: pitch.0,
+                enabled: false,
+            }),
+        );
         let camera_uniform_location = (1, 0);
         Uniforms {
-            groups: vec![
-                group0,
-                group1
-            ],
+            groups: vec![group0, group1],
             time_uniform_location,
-            camera_uniform_location
+            camera_uniform_location,
         }
     }
 
@@ -397,24 +501,18 @@ impl Uniforms {
         let time_binding = &self.groups[g_index].bindings[b_index];
         assert!(time_binding.value == UniformValue::BuiltIn(BuiltinValue::Time));
 
-        queue.write_buffer(
-            &time_binding.buffer,
-            0,
-            &elapsed_time.to_le_bytes()
-        ).unwrap();
+        queue
+            .write_buffer(&time_binding.buffer, 0, &elapsed_time.to_le_bytes())
+            .unwrap();
     }
-
 
     pub(crate) fn enable_camera(&mut self, enable: bool) {
         let (g_index, b_index) = self.camera_uniform_location;
         let camera_binding = &mut self.groups[g_index].bindings[b_index];
 
         match &mut camera_binding.value {
-            UniformValue::BuiltIn(BuiltinValue::Camera {
-                enabled,
-                ..
-            }) => *enabled = enable,
-            _ => unreachable!()
+            UniformValue::BuiltIn(BuiltinValue::Camera { enabled, .. }) => *enabled = enable,
+            _ => unreachable!(),
         }
     }
 
@@ -426,7 +524,14 @@ impl Uniforms {
         self.groups[group as usize].define_binding(binding, device);
     }
 
-    fn change_type(&mut self, unitype: UniformType, g_index: usize, b_index: usize, queue: &Queue, device: &Device) {
+    fn change_type(
+        &mut self,
+        unitype: UniformType,
+        g_index: usize,
+        b_index: usize,
+        queue: &Queue,
+        device: &Device,
+    ) {
         self.groups[g_index].change_type(unitype, b_index, queue, device)
     }
 
@@ -438,15 +543,36 @@ impl Uniforms {
         self.groups[g_index].decrease(b_index, queue)
     }
 
-    fn change_inner_type(&mut self, inner_type: ScalarType, g_index: usize, b_index: usize, device: &Device, queue: &Queue) {
+    fn change_inner_type(
+        &mut self,
+        inner_type: ScalarType,
+        g_index: usize,
+        b_index: usize,
+        device: &Device,
+        queue: &Queue,
+    ) {
         self.groups[g_index].change_inner_type(inner_type, b_index, device, queue)
     }
 
-    pub(crate) fn change_binding_size(&mut self, g_index: usize, b_index: usize, new_size: u64, device: &Device, queue: &Queue) {
+    pub(crate) fn change_binding_size(
+        &mut self,
+        g_index: usize,
+        b_index: usize,
+        new_size: u64,
+        device: &Device,
+        queue: &Queue,
+    ) {
         self.groups[g_index].change_binding_size(b_index, new_size, device, queue);
     }
 
-    fn change_matrix_size(&mut self, matrix_size: MatrixType, g_index: usize, b_index: usize, device: &Device, queue: &Queue) {
+    fn change_matrix_size(
+        &mut self,
+        matrix_size: MatrixType,
+        g_index: usize,
+        b_index: usize,
+        device: &Device,
+        queue: &Queue,
+    ) {
         self.groups[g_index].change_matrix_size(matrix_size, b_index, device, queue)
     }
 }
@@ -459,7 +585,7 @@ enum MeshType {
     Cube,
     Cylinder,
     Cone,
-    Torus
+    Torus,
 }
 
 pub enum MeshConfig {
@@ -469,7 +595,7 @@ pub enum MeshConfig {
     Cube,
     Cylinder,
     Cone,
-    Torus
+    Torus,
 }
 
 pub struct UiState {
@@ -483,7 +609,7 @@ pub struct UiState {
     pub mesh_config: MeshConfig,
     pub show_mesh: bool,
     always_on_top: bool,
-    pub background_color: [f32;4]
+    pub background_color: [f32; 4],
 }
 
 impl UiState {
@@ -499,7 +625,7 @@ impl UiState {
             mesh_config: MeshConfig::Screen2D,
             show_mesh: false,
             always_on_top: false,
-            background_color: [1.0,0.5,0.5,1.0],
+            background_color: [1.0, 0.5, 0.5, 1.0],
         }
     }
 
@@ -545,7 +671,10 @@ impl UiState {
             ui.color_edit4("Background color", &mut self.background_color);
             let mut edit_event = None;
             for (group_index, group) in self.inputs.groups.iter_mut().enumerate() {
-                if ui.collapsing_header(format!("Binding group {group_index}"), TreeNodeFlags::empty()) {
+                if ui.collapsing_header(
+                    format!("Binding group {group_index}"),
+                    TreeNodeFlags::empty(),
+                ) {
                     for (binding_index, uniform) in group.bindings.iter_mut().enumerate() {
                         if let Some(event) = uniform.show_editor(ui, group_index, binding_index) {
                             edit_event = Some(event);
@@ -565,20 +694,32 @@ impl UiState {
 
             if let Some(event) = edit_event {
                 match event {
-                    UniformEditEvent::UpdateBuffer(g_index, b_index) => self.inputs.update_buffer(g_index, b_index, queue),
+                    UniformEditEvent::UpdateBuffer(g_index, b_index) => {
+                        self.inputs.update_buffer(g_index, b_index, queue)
+                    }
                     UniformEditEvent::AddUniform(g_index) => self.inputs.add_f32(g_index, device),
                     UniformEditEvent::AddBindGroup => self.inputs.add_bind_group(device),
-                    UniformEditEvent::ChangeType(unitype, g_index, b_index) => self.inputs.change_type(unitype, g_index, b_index, queue, device),
-                    UniformEditEvent::Increase(g_index, b_index) => self.inputs.increase(g_index, b_index, queue),
-                    UniformEditEvent::Decrease(g_index, b_index) => self.inputs.decrease(g_index, b_index, queue),
-                    UniformEditEvent::ChangeInnerType(inner_type, g_index, b_index) => self.inputs.change_inner_type(inner_type, g_index, b_index, device, queue),
-                    UniformEditEvent::ChangeMatrixSize(matrix_size, g_index, b_index) => self.inputs.change_matrix_size(matrix_size, g_index, b_index, device, queue),
+                    UniformEditEvent::ChangeType(unitype, g_index, b_index) => self
+                        .inputs
+                        .change_type(unitype, g_index, b_index, queue, device),
+                    UniformEditEvent::Increase(g_index, b_index) => {
+                        self.inputs.increase(g_index, b_index, queue)
+                    }
+                    UniformEditEvent::Decrease(g_index, b_index) => {
+                        self.inputs.decrease(g_index, b_index, queue)
+                    }
+                    UniformEditEvent::ChangeInnerType(inner_type, g_index, b_index) => self
+                        .inputs
+                        .change_inner_type(inner_type, g_index, b_index, device, queue),
+                    UniformEditEvent::ChangeMatrixSize(matrix_size, g_index, b_index) => self
+                        .inputs
+                        .change_matrix_size(matrix_size, g_index, b_index, device, queue),
                 };
                 message = Some(Message::ReloadPipeline);
             }
         });
 
-        ui.window("Mesh configuration").build(||{
+        ui.window("Mesh configuration").build(|| {
             if ui.checkbox("Show mesh", &mut self.show_mesh) {
                 message = Some(Message::ReloadPipeline)
             };
@@ -589,7 +730,7 @@ impl UiState {
                 message = Some(Message::ReloadMeshBuffers);
             };
             if ui.radio_button("Plane", &mut self.mesh_type, MeshType::Plane) {
-                self.mesh_config = MeshConfig::Plane((1.0,1.0), (1,1));
+                self.mesh_config = MeshConfig::Plane((1.0, 1.0), (1, 1));
                 message = Some(Message::ReloadMeshBuffers);
             };
             let dis = ui.begin_disabled(true);
@@ -632,27 +773,27 @@ impl UiState {
                     if ui.slider("Columns", 1, 1_000, columns) {
                         message = Some(Message::ReloadMeshBuffers)
                     };
-                },
+                }
                 MeshConfig::Sphere => {
                     ui.input_float("Radius", &mut 0.0).build();
                     ui.slider("Triangle count", 4, 1_000_000, &mut 0);
-                },
+                }
                 MeshConfig::Cube => {
                     ui.input_float("Side length", &mut 0.0).build();
                     ui.slider("Triangles per side", 2, 1_000_000, &mut 0);
-                },
+                }
                 MeshConfig::Cylinder => {
                     ui.slider("Radius", 0.1, 1000.0, &mut 1.0);
                     ui.slider("height", 0.1, 1000.0, &mut 3.0);
-                },
+                }
                 MeshConfig::Cone => {
                     ui.slider("Radius", 0.1, 1000.0, &mut 1.0);
                     ui.slider("height", 0.1, 1000.0, &mut 3.0);
-                },
+                }
                 MeshConfig::Torus => {
                     ui.slider("Inner radius", 0.1, 1000.0, &mut 1.0);
                     ui.slider("Outer radius", 0.1, 1000.0, &mut 0.0);
-                },
+                }
             }
         });
 
@@ -691,15 +832,20 @@ impl ImState {
         };
         let mut renderer = Renderer::new(&mut context, &gpu.device, &gpu.queue, renderer_config);
 
-        let texture = ImTexture::new(&gpu.device, &renderer, TextureConfig {
-            size: wgpu::Extent3d {
-                width: IMAGE_WIDTH as u32,
-                height: IMAGE_HEIGHT as u32,
+        let texture = ImTexture::new(
+            &gpu.device,
+            &renderer,
+            TextureConfig {
+                size: wgpu::Extent3d {
+                    width: IMAGE_WIDTH as u32,
+                    height: IMAGE_HEIGHT as u32,
+                    ..Default::default()
+                },
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
                 ..Default::default()
             },
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            ..Default::default()
-        });
+        );
         let texture_id = renderer.textures.insert(texture);
 
         let ui = UiState::new(texture_id, &gpu.device);
@@ -711,7 +857,12 @@ impl ImState {
         }
     }
 
-    pub fn render(&mut self, window: &WinitWindow, gpu: &Gpu, view: &TextureView) -> (CommandEncoder, Option<Message>) {
+    pub fn render(
+        &mut self,
+        window: &WinitWindow,
+        gpu: &Gpu,
+        view: &TextureView,
+    ) -> (CommandEncoder, Option<Message>) {
         self.platform
             .prepare_frame(self.context.io_mut(), window)
             .expect("Failed to prepare frame");
@@ -723,7 +874,8 @@ impl ImState {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("ImGui Render Encoder"),
-            }).unwrap();
+            })
+            .unwrap();
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
@@ -737,21 +889,31 @@ impl ImState {
                 })],
                 depth_stencil_attachment: None,
                 occlusion_query_set: None,
-                timestamp_writes: None
+                timestamp_writes: None,
             });
             self.renderer
-                .render(self.context.render(), &gpu.queue, &gpu.device, &mut render_pass)
+                .render(
+                    self.context.render(),
+                    &gpu.queue,
+                    &gpu.device,
+                    &mut render_pass,
+                )
                 .expect("Rendering failed");
         }
         (encoder, message)
     }
 
     pub fn handle_event(&mut self, event: &Event<()>, window: &WinitWindow) {
-        self.platform.handle_event(self.context.io_mut(), window, event);
+        self.platform
+            .handle_event(self.context.io_mut(), window, event);
     }
 
     pub fn get_texture_view(&self) -> &TextureView {
-        self.renderer.textures.get(self.ui.texture_id).unwrap().view()
+        self.renderer
+            .textures
+            .get(self.ui.texture_id)
+            .unwrap()
+            .view()
     }
 
     pub(crate) fn destroy_errors(&mut self) {
@@ -761,8 +923,6 @@ impl ImState {
 
     pub(crate) fn show_crate_shader_err(&mut self, err: CreateShaderModuleError) {
         self.ui.show_errors = true;
-        self.ui.errors = vec![
-            err.to_string()
-        ]
+        self.ui.errors = vec![err.to_string()]
     }
 }

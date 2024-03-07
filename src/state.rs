@@ -1,10 +1,31 @@
-use std::{borrow::Cow, path::Path, time::{Duration, Instant}};
+use std::{
+    borrow::Cow,
+    path::Path,
+    time::{Duration, Instant},
+};
 
 use cgmath::num_traits::ToBytes;
-use wgpu::{core::{binding_model::LateMinBufferBindingSizeMismatch, command::{DrawError, RenderPassErrorInner}, pipeline::{CreateRenderPipelineError, CreateShaderModuleError}, validation::{BindingError, StageError}}, util::{BufferInitDescriptor, DeviceExt}, BlendState, Buffer, BufferUsages, Color, ColorTargetState, ColorWrites, Device, FragmentState, FrontFace, MultisampleState, PipelineLayout, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, Queue, RenderPipeline, RenderPipelineDescriptor, ShaderModule, ShaderModuleDescriptor, ShaderSource, ShaderStages, Surface, SurfaceConfiguration, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode};
+use wgpu::{
+    core::{
+        binding_model::LateMinBufferBindingSizeMismatch,
+        command::{DrawError, RenderPassErrorInner},
+        pipeline::{CreateRenderPipelineError, CreateShaderModuleError},
+        validation::{BindingError, StageError},
+    },
+    util::{BufferInitDescriptor, DeviceExt},
+    BlendState, Buffer, BufferUsages, Color, ColorTargetState, ColorWrites, Device, FragmentState,
+    FrontFace, MultisampleState, PipelineLayout, PipelineLayoutDescriptor, PolygonMode,
+    PrimitiveState, PrimitiveTopology, Queue, RenderPipeline, RenderPipelineDescriptor,
+    ShaderModule, ShaderModuleDescriptor, ShaderSource, ShaderStages, Surface,
+    SurfaceConfiguration, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState,
+    VertexStepMode,
+};
 use winit::window::Window;
 
-use crate::{imgui_state::{ImState, MeshConfig, Message, Uniforms}, rendering::RenderMessage};
+use crate::{
+    imgui_state::{ImState, MeshConfig, Message, Uniforms},
+    rendering::RenderMessage,
+};
 
 pub struct TimeKeeper {
     last_render_time: Instant,
@@ -37,16 +58,21 @@ pub struct Gpu<'surface> {
     pub surface: Surface<'surface>,
     pub device: Device,
     pub queue: Queue,
-    pub config: SurfaceConfiguration
+    pub config: SurfaceConfiguration,
 }
 
 impl<'surface> Gpu<'surface> {
-    pub fn new(surface: Surface<'_>, device: Device, queue: Queue, config: SurfaceConfiguration) -> Gpu<'_> {
+    pub fn new(
+        surface: Surface<'_>,
+        device: Device,
+        queue: Queue,
+        config: SurfaceConfiguration,
+    ) -> Gpu<'_> {
         Gpu {
             surface,
             device,
             queue,
-            config
+            config,
         }
     }
 
@@ -59,17 +85,18 @@ impl<'surface> Gpu<'surface> {
 
 struct Shader {
     contents: String,
-    shader: ShaderModule
+    shader: ShaderModule,
 }
 
 pub struct Vertex {
     x: f32,
     y: f32,
-    z: f32
+    z: f32,
 }
 impl Vertex {
     fn to_le_bytes(&self) -> Vec<u8> {
-        self.x.to_le_bytes()
+        self.x
+            .to_le_bytes()
             .into_iter()
             .chain(self.y.to_le_bytes())
             .chain(self.z.to_le_bytes())
@@ -89,33 +116,36 @@ impl Vertices {
         Self::screen_2d_vertices()
     }
 
+    #[rustfmt::skip]
     fn screen_2d_vertices() -> (Vec<Vertex>, Vec<u32>) {
-        (vec![
-            Vertex {
-                x: -1.0,
-                y: 1.0,
-                z: 0.0,
-            },
-            Vertex {
-                x: 1.0,
-                y: 1.0,
-                z: 0.0,
-            },
-            Vertex {
-                x: -1.0,
-                y: -1.0,
-                z: 0.0,
-            },
-            Vertex {
-                x: 1.0,
-                y: -1.0,
-                z: 0.0,
-            }
-        ],
-        vec![
-            0, 2, 3,
-            0, 3, 1
-        ])
+        (
+            vec![
+                Vertex {
+                    x: -1.0,
+                    y: 1.0,
+                    z: 0.0,
+                },
+                Vertex {
+                    x: 1.0,
+                    y: 1.0,
+                    z: 0.0,
+                },
+                Vertex {
+                    x: -1.0,
+                    y: -1.0,
+                    z: 0.0,
+                },
+                Vertex {
+                    x: 1.0,
+                    y: -1.0,
+                    z: 0.0,
+                },
+            ],
+            vec![
+                0, 2, 3,
+                0, 3, 1
+            ],
+        )
     }
 
     fn switch(&mut self, mesh_config: &MeshConfig, device: &Device) {
@@ -132,17 +162,29 @@ impl Vertices {
         self.vertices = vertices;
         self.indices = indices;
 
-        self.vertex_buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("vertex buffer"),
-            contents: &self.vertices.iter().flat_map(|vert| vert.to_le_bytes()).collect::<Vec<_>>(),
-            usage: BufferUsages::VERTEX,
-        }).unwrap();
+        self.vertex_buffer = device
+            .create_buffer_init(&BufferInitDescriptor {
+                label: Some("vertex buffer"),
+                contents: &self
+                    .vertices
+                    .iter()
+                    .flat_map(|vert| vert.to_le_bytes())
+                    .collect::<Vec<_>>(),
+                usage: BufferUsages::VERTEX,
+            })
+            .unwrap();
 
-        self.index_buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("index buffer"),
-            contents: &self.indices.iter().flat_map(|vert| vert.to_le_bytes()).collect::<Vec<_>>(),
-            usage: BufferUsages::INDEX,
-        }).unwrap();
+        self.index_buffer = device
+            .create_buffer_init(&BufferInitDescriptor {
+                label: Some("index buffer"),
+                contents: &self
+                    .indices
+                    .iter()
+                    .flat_map(|vert| vert.to_le_bytes())
+                    .collect::<Vec<_>>(),
+                usage: BufferUsages::INDEX,
+            })
+            .unwrap();
     }
 
     fn plane_vertices(size: (f32, f32), resolution: (u32, u32)) -> (Vec<Vertex>, Vec<u32>) {
@@ -151,11 +193,7 @@ impl Vertices {
             for x in 0..=resolution.0 {
                 let x = (x as f32 / (resolution.0 as f32) - 1.0) * size.0;
                 let z = (z as f32 / (resolution.1 as f32) - 1.0) * size.1;
-                let vertex = Vertex {
-                    x,
-                    y: 0.0,
-                    z,
-                };
+                let vertex = Vertex { x, y: 0.0, z };
                 points.push(vertex)
             }
         }
@@ -165,9 +203,9 @@ impl Vertices {
             for j in 0..resolution.0 {
                 // 2 triangles per square
                 let row = i * (resolution.0 + 1);
-                let next_row = (i+1) * (resolution.0 + 1);
+                let next_row = (i + 1) * (resolution.0 + 1);
                 let column = j;
-                let next_column = j+1;
+                let next_column = j + 1;
 
                 // Triangle 1
                 // p1 -> .-. <- p2
@@ -207,7 +245,8 @@ pub struct State<'surface> {
 
 impl<'surface> State<'surface> {
     pub fn new(gpu: Gpu<'surface>, window: &Window) -> State<'surface> {
-        let current_shader = std::fs::read_to_string(Path::new("shaders").join("shader.wgsl")).unwrap();
+        let current_shader =
+            std::fs::read_to_string(Path::new("shaders").join("shader.wgsl")).unwrap();
         let dummy_shader_src: Cow<'static, str> = "
 struct VertexOutput {
     @builtin(position) pos: vec4<f32>,
@@ -224,44 +263,62 @@ fn vs_main() -> VertexOutput {
 fn fs_main() -> @location(0) vec4<f32> {
     return vec4(0.0,0.0,0.0,0.0);
 }
-".into();
-        let dummy_shader = gpu.device.create_shader_module(ShaderModuleDescriptor {
-            label: None,
-            source: ShaderSource::Wgsl(dummy_shader_src.clone()),
-        }).unwrap();
-        let shader = gpu.device.create_shader_module(ShaderModuleDescriptor {
-            label: None,
-            source: ShaderSource::Wgsl(current_shader.clone().into()),
-        }).unwrap_or(gpu.device.create_shader_module(ShaderModuleDescriptor {
-            label: None,
-            source: ShaderSource::Wgsl(dummy_shader_src),
-        }).unwrap());
+        "
+        .into();
+
+        let dummy_shader = gpu
+            .device
+            .create_shader_module(ShaderModuleDescriptor {
+                label: None,
+                source: ShaderSource::Wgsl(dummy_shader_src.clone()),
+            })
+            .unwrap();
+        let shader = gpu
+            .device
+            .create_shader_module(ShaderModuleDescriptor {
+                label: None,
+                source: ShaderSource::Wgsl(current_shader.clone().into()),
+            })
+            .unwrap_or(
+                gpu.device
+                    .create_shader_module(ShaderModuleDescriptor {
+                        label: None,
+                        source: ShaderSource::Wgsl(dummy_shader_src),
+                    })
+                    .unwrap(),
+            );
 
         let time = TimeKeeper::new();
-        let layout = gpu.device.create_pipeline_layout(&PipelineLayoutDescriptor {
-            label: Some("dummy pipeline layout"),
-            bind_group_layouts: &[],
-            push_constant_ranges: &[],
-        }).unwrap();
-        let pipeline = gpu.device.create_render_pipeline(&RenderPipelineDescriptor {
-            label: Some("dummy pipeline"),
-            layout: Some(&layout),
-            vertex: VertexState {
-                module: &dummy_shader,
-                entry_point: "vs_main",
-                buffers: &[],
-            },
-            primitive: PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: MultisampleState::default(),
-            fragment: None,
-            multiview: None,
-        }).unwrap();
+        let layout = gpu
+            .device
+            .create_pipeline_layout(&PipelineLayoutDescriptor {
+                label: Some("dummy pipeline layout"),
+                bind_group_layouts: &[],
+                push_constant_ranges: &[],
+            })
+            .unwrap();
+        let pipeline = gpu
+            .device
+            .create_render_pipeline(&RenderPipelineDescriptor {
+                label: Some("dummy pipeline"),
+                layout: Some(&layout),
+                vertex: VertexState {
+                    module: &dummy_shader,
+                    entry_point: "vs_main",
+                    buffers: &[],
+                },
+                primitive: PrimitiveState::default(),
+                depth_stencil: None,
+                multisample: MultisampleState::default(),
+                fragment: None,
+                multiview: None,
+            })
+            .unwrap();
 
         let im_state = ImState::new(window, &gpu);
         let current_shader = Shader {
             contents: current_shader,
-            shader
+            shader,
         };
         let (vertices, indices) = Vertices::default_vertices();
         let mut state = State {
@@ -271,17 +328,29 @@ fn fs_main() -> @location(0) vec4<f32> {
             current_shader_path: "shader.wgsl".into(),
             current_shader,
             vertices: Vertices {
-                vertex_buffer: gpu.device.create_buffer_init(&BufferInitDescriptor {
-                    label: Some("Vertex buffer"),
-                    contents: &vertices.iter().flat_map(|vert| vert.to_le_bytes()).collect::<Vec<_>>(),
-                    usage: BufferUsages::VERTEX
-                }).unwrap(),
+                vertex_buffer: gpu
+                    .device
+                    .create_buffer_init(&BufferInitDescriptor {
+                        label: Some("Vertex buffer"),
+                        contents: &vertices
+                            .iter()
+                            .flat_map(|vert| vert.to_le_bytes())
+                            .collect::<Vec<_>>(),
+                        usage: BufferUsages::VERTEX,
+                    })
+                    .unwrap(),
                 vertices,
-                index_buffer: gpu.device.create_buffer_init(&BufferInitDescriptor {
-                    label: Some("Index buffer"),
-                    contents: &indices.iter().flat_map(|ind| (*ind).to_le_bytes()).collect::<Vec<_>>(),
-                    usage: BufferUsages::INDEX
-                }).unwrap(),
+                index_buffer: gpu
+                    .device
+                    .create_buffer_init(&BufferInitDescriptor {
+                        label: Some("Index buffer"),
+                        contents: &indices
+                            .iter()
+                            .flat_map(|ind| (*ind).to_le_bytes())
+                            .collect::<Vec<_>>(),
+                        usage: BufferUsages::INDEX,
+                    })
+                    .unwrap(),
                 indices,
             },
             gpu,
@@ -303,52 +372,51 @@ fn fs_main() -> @location(0) vec4<f32> {
         } else {
             PolygonMode::Fill
         };
-        match self.gpu.device.create_render_pipeline(&RenderPipelineDescriptor {
-            label: None,
-            layout: Some(&layout),
-            vertex: VertexState {
-                module: &self.current_shader.shader,
-                entry_point: "vs_main",
-                buffers: &[
-                    VertexBufferLayout {
+        match self
+            .gpu
+            .device
+            .create_render_pipeline(&RenderPipelineDescriptor {
+                label: None,
+                layout: Some(&layout),
+                vertex: VertexState {
+                    module: &self.current_shader.shader,
+                    entry_point: "vs_main",
+                    buffers: &[VertexBufferLayout {
                         array_stride: std::mem::size_of::<f32>() as u64 * 3,
                         step_mode: VertexStepMode::Vertex,
-                        attributes: &[
-                            VertexAttribute {
-                                format: VertexFormat::Float32x3,
-                                offset: 0,
-                                shader_location: 0,
-                            }
-                        ],
-                    }
-                ],
-            },
-            primitive: PrimitiveState {
-                topology: PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: FrontFace::Ccw,
-                cull_mode: None,
-                unclipped_depth: false,
-                polygon_mode: poly_mode,
-                conservative: false,
-            },
-            depth_stencil: None,
-            multisample: MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            fragment: Some(FragmentState {
-                module: &self.current_shader.shader,
-                entry_point: "fs_main",
-                targets: &[Some(ColorTargetState {
-                    format: self.gpu.config.format,
-                    blend: Some(BlendState::ALPHA_BLENDING),
-                    write_mask: ColorWrites::ALL,
-                })],
-            }),
-            multiview: None,
-        }) {
+                        attributes: &[VertexAttribute {
+                            format: VertexFormat::Float32x3,
+                            offset: 0,
+                            shader_location: 0,
+                        }],
+                    }],
+                },
+                primitive: PrimitiveState {
+                    topology: PrimitiveTopology::TriangleList,
+                    strip_index_format: None,
+                    front_face: FrontFace::Ccw,
+                    cull_mode: None,
+                    unclipped_depth: false,
+                    polygon_mode: poly_mode,
+                    conservative: false,
+                },
+                depth_stencil: None,
+                multisample: MultisampleState {
+                    count: 1,
+                    mask: !0,
+                    alpha_to_coverage_enabled: false,
+                },
+                fragment: Some(FragmentState {
+                    module: &self.current_shader.shader,
+                    entry_point: "fs_main",
+                    targets: &[Some(ColorTargetState {
+                        format: self.gpu.config.format,
+                        blend: Some(BlendState::ALPHA_BLENDING),
+                        write_mask: ColorWrites::ALL,
+                    })],
+                }),
+                multiview: None,
+            }) {
             Ok(pipeline) => pipeline,
             Err(err) => self.handle_pipeline_err(err),
         }
@@ -359,23 +427,23 @@ fn fs_main() -> @location(0) vec4<f32> {
             CreateRenderPipelineError::Stage { stage, error } => {
                 if let ShaderStages::FRAGMENT = stage {
                     match error {
-                        StageError::Binding(binding, error) => {
-                            match error {
-                                BindingError::Missing => {
-                                    self.im_state.ui.inputs.define_binding(binding.group, binding.binding, &self.gpu.device)
-                                },
-                                BindingError::Invisible => todo!(),
-                                BindingError::WrongType => todo!(),
-                                BindingError::WrongAddressSpace { .. } => todo!(),
-                                BindingError::WrongBufferSize(_) => todo!(),
-                                BindingError::WrongTextureViewDimension { .. } => todo!(),
-                                BindingError::WrongTextureClass { .. } => todo!(),
-                                BindingError::WrongSamplerComparison => todo!(),
-                                BindingError::InconsistentlyDerivedType => todo!(),
-                                BindingError::BadStorageFormat(_) => todo!(),
-                                BindingError::UnsupportedTextureStorageAccess(_) => todo!(),
-                                _ => todo!(),
-                            }
+                        StageError::Binding(binding, error) => match error {
+                            BindingError::Missing => self.im_state.ui.inputs.define_binding(
+                                binding.group,
+                                binding.binding,
+                                &self.gpu.device,
+                            ),
+                            BindingError::Invisible => todo!(),
+                            BindingError::WrongType => todo!(),
+                            BindingError::WrongAddressSpace { .. } => todo!(),
+                            BindingError::WrongBufferSize(_) => todo!(),
+                            BindingError::WrongTextureViewDimension { .. } => todo!(),
+                            BindingError::WrongTextureClass { .. } => todo!(),
+                            BindingError::WrongSamplerComparison => todo!(),
+                            BindingError::InconsistentlyDerivedType => todo!(),
+                            BindingError::BadStorageFormat(_) => todo!(),
+                            BindingError::UnsupportedTextureStorageAccess(_) => todo!(),
+                            _ => todo!(),
                         },
                         StageError::InvalidModule => todo!(),
                         StageError::InvalidWorkgroupSize { .. } => todo!(),
@@ -389,7 +457,7 @@ fn fs_main() -> @location(0) vec4<f32> {
                 } else {
                     panic!("Cannot add parameters used in places other than the fragment shader")
                 }
-            },
+            }
             CreateRenderPipelineError::ColorAttachment(_) => todo!(),
             CreateRenderPipelineError::Device(_) => todo!(),
             CreateRenderPipelineError::InvalidLayout => todo!(),
@@ -419,17 +487,22 @@ fn fs_main() -> @location(0) vec4<f32> {
     }
 
     pub fn refresh_shader(&mut self) {
-        if let Ok(shader_contents) = std::fs::read_to_string(Path::new("shaders").join(&self.current_shader_path)) {
-            match self.gpu.device.create_shader_module(ShaderModuleDescriptor {
-                label: None,
-                source: ShaderSource::Wgsl(shader_contents.clone().into()),
-            }) {
+        if let Ok(shader_contents) =
+            std::fs::read_to_string(Path::new("shaders").join(&self.current_shader_path))
+        {
+            match self
+                .gpu
+                .device
+                .create_shader_module(ShaderModuleDescriptor {
+                    label: None,
+                    source: ShaderSource::Wgsl(shader_contents.clone().into()),
+                }) {
                 Ok(shader) => {
                     self.im_state.destroy_errors();
                     self.current_shader.contents = shader_contents;
                     self.current_shader.shader = shader;
                     self.refresh_pipeline()
-                },
+                }
                 Err(err) => self.handle_shader_err(err),
             };
         };
@@ -448,12 +521,12 @@ fn fs_main() -> @location(0) vec4<f32> {
             Message::LoadShader(shader) => {
                 self.current_shader_path = shader;
                 self.refresh_shader();
-            },
+            }
             Message::ReloadPipeline => self.refresh_pipeline(),
             Message::ReloadMeshBuffers => {
                 self.auto_enable_camera();
                 self.reload_mesh_buffers()
-            },
+            }
             Message::ChangeWindowLevel(window_level) => {
                 render_message = Some(RenderMessage::ChangeWindowLevel(window_level))
             }
@@ -474,11 +547,14 @@ fn fs_main() -> @location(0) vec4<f32> {
             layout_refs.push(l)
         }
 
-        self.gpu.device.create_pipeline_layout(&PipelineLayoutDescriptor {
-            label: None,
-            bind_group_layouts: &layout_refs,
-            push_constant_ranges: &[],
-        }).unwrap()
+        self.gpu
+            .device
+            .create_pipeline_layout(&PipelineLayoutDescriptor {
+                label: None,
+                bind_group_layouts: &layout_refs,
+                push_constant_ranges: &[],
+            })
+            .unwrap()
     }
 
     fn handle_shader_err(&mut self, err: CreateShaderModuleError) {
@@ -504,18 +580,19 @@ fn fs_main() -> @location(0) vec4<f32> {
                         *compact_index,
                         *shader_size,
                         &self.gpu.device,
-                        &self.gpu.queue
+                        &self.gpu.queue,
                     );
                     Some(Message::ReloadPipeline)
-                },
+                }
                 _ => todo!(),
             },
-            _ => None
+            _ => None,
         }
     }
 
     fn reload_mesh_buffers(&mut self) {
-        self.vertices.switch(&self.im_state.ui.mesh_config, &self.gpu.device)
+        self.vertices
+            .switch(&self.im_state.ui.mesh_config, &self.gpu.device)
     }
 
     fn auto_enable_camera(&mut self) {

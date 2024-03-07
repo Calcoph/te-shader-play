@@ -2,10 +2,16 @@ use std::borrow::Cow;
 
 use imgui::Ui;
 
-use crate::imgui_state::{uniform_types::ExtendedUi, ImguiMatrix, ImguiUniformSelectable, UniformEditEvent};
+use crate::imgui_state::{
+    uniform_types::ExtendedUi, ImguiMatrix, ImguiUniformSelectable, UniformEditEvent,
+};
 
-use super::{scalar::ScalarUniformValue, transform::TransformUniformValue, vec::{Vec2UniformValue, Vec3UniformValue, Vec4UniformValue, VectorUniformValue}, ScalarType, UniformType, UniformValue, VecType};
-
+use super::{
+    scalar::ScalarUniformValue,
+    transform::TransformUniformValue,
+    vec::{Vec2UniformValue, Vec3UniformValue, Vec4UniformValue, VectorUniformValue},
+    ScalarType, UniformType, UniformValue, VecType,
+};
 
 trait MatrixColumn {
     fn to_le_bytes(&self) -> Vec<u8>;
@@ -21,23 +27,22 @@ pub(crate) struct Column4(pub f32, pub f32, pub f32, pub f32);
 
 impl MatrixColumn for Column2 {
     fn to_le_bytes(&self) -> Vec<u8> {
-        self.0.to_le_bytes()
+        self.0
+            .to_le_bytes()
             .into_iter()
             .chain(self.1.to_le_bytes())
             .collect()
     }
 
     fn values(&self) -> Vec<f32> {
-        vec![
-            self.0,
-            self.1,
-        ]
+        vec![self.0, self.1]
     }
 }
 
 impl MatrixColumn for Column3 {
     fn to_le_bytes(&self) -> Vec<u8> {
-        self.0.to_le_bytes()
+        self.0
+            .to_le_bytes()
             .into_iter()
             .chain(self.1.to_le_bytes())
             .chain(self.2.to_le_bytes())
@@ -45,17 +50,14 @@ impl MatrixColumn for Column3 {
     }
 
     fn values(&self) -> Vec<f32> {
-        vec![
-            self.0,
-            self.1,
-            self.2,
-        ]
+        vec![self.0, self.1, self.2]
     }
 }
 
 impl MatrixColumn for Column4 {
     fn to_le_bytes(&self) -> Vec<u8> {
-        self.0.to_le_bytes()
+        self.0
+            .to_le_bytes()
             .into_iter()
             .chain(self.1.to_le_bytes())
             .chain(self.2.to_le_bytes())
@@ -64,12 +66,7 @@ impl MatrixColumn for Column4 {
     }
 
     fn values(&self) -> Vec<f32> {
-        vec![
-            self.0,
-            self.1,
-            self.2,
-            self.3
-        ]
+        vec![self.0, self.1, self.2, self.3]
     }
 }
 
@@ -112,7 +109,9 @@ impl MatrixUniformValue {
             VecType::Vec4(s) => match s {
                 ScalarType::U32 => VectorUniformValue::Vec4(Vec4UniformValue::U32(0, 0, 0, 0)),
                 ScalarType::I32 => VectorUniformValue::Vec4(Vec4UniformValue::I32(0, 0, 0, 0)),
-                ScalarType::F32 => VectorUniformValue::Vec4(Vec4UniformValue::F32(0.0, 0.0, 0.0, 0.0)),
+                ScalarType::F32 => {
+                    VectorUniformValue::Vec4(Vec4UniformValue::F32(0.0, 0.0, 0.0, 0.0))
+                }
             },
         })
     }
@@ -120,20 +119,55 @@ impl MatrixUniformValue {
     fn cast_to_matrix(&self, m: MatrixType) -> UniformValue {
         UniformValue::Matrix(match m {
             MatrixType::M2x2 => MatrixUniformValue::M2x2(Column2(0.0, 0.0), Column2(0.0, 0.0)),
-            MatrixType::M2x3 => MatrixUniformValue::M2x3(Column3(0.0, 0.0, 0.0), Column3(0.0, 0.0, 0.0)),
-            MatrixType::M2x4 => MatrixUniformValue::M2x4(Column4(0.0, 0.0, 0.0, 0.0), Column4(0.0, 0.0, 0.0, 0.0)),
+            MatrixType::M2x3 => {
+                MatrixUniformValue::M2x3(Column3(0.0, 0.0, 0.0), Column3(0.0, 0.0, 0.0))
+            }
+            MatrixType::M2x4 => {
+                MatrixUniformValue::M2x4(Column4(0.0, 0.0, 0.0, 0.0), Column4(0.0, 0.0, 0.0, 0.0))
+            }
 
-            MatrixType::M3x2 => MatrixUniformValue::M3x2(Column2(0.0, 0.0), Column2(0.0, 0.0), Column2(0.0, 0.0)),
-            MatrixType::M3x3 => MatrixUniformValue::M3x3(Column3(0.0, 0.0, 0.0), Column3(0.0, 0.0, 0.0), Column3(0.0, 0.0, 0.0)),
-            MatrixType::M3x4 => MatrixUniformValue::M3x4(Column4(0.0, 0.0, 0.0, 0.0), Column4(0.0, 0.0, 0.0, 0.0), Column4(0.0, 0.0, 0.0, 0.0)),
+            MatrixType::M3x2 => {
+                MatrixUniformValue::M3x2(Column2(0.0, 0.0), Column2(0.0, 0.0), Column2(0.0, 0.0))
+            }
+            MatrixType::M3x3 => MatrixUniformValue::M3x3(
+                Column3(0.0, 0.0, 0.0),
+                Column3(0.0, 0.0, 0.0),
+                Column3(0.0, 0.0, 0.0),
+            ),
+            MatrixType::M3x4 => MatrixUniformValue::M3x4(
+                Column4(0.0, 0.0, 0.0, 0.0),
+                Column4(0.0, 0.0, 0.0, 0.0),
+                Column4(0.0, 0.0, 0.0, 0.0),
+            ),
 
-            MatrixType::M4x2 => MatrixUniformValue::M4x2(Column2(0.0, 0.0), Column2(0.0, 0.0), Column2(0.0, 0.0), Column2(0.0, 0.0)),
-            MatrixType::M4x3 => MatrixUniformValue::M4x3(Column3(0.0, 0.0, 0.0), Column3(0.0, 0.0, 0.0), Column3(0.0, 0.0, 0.0), Column3(0.0, 0.0, 0.0)),
-            MatrixType::M4x4 => MatrixUniformValue::M4x4(Column4(0.0, 0.0, 0.0, 0.0), Column4(0.0, 0.0, 0.0, 0.0), Column4(0.0, 0.0, 0.0, 0.0), Column4(0.0, 0.0, 0.0, 0.0)),
+            MatrixType::M4x2 => MatrixUniformValue::M4x2(
+                Column2(0.0, 0.0),
+                Column2(0.0, 0.0),
+                Column2(0.0, 0.0),
+                Column2(0.0, 0.0),
+            ),
+            MatrixType::M4x3 => MatrixUniformValue::M4x3(
+                Column3(0.0, 0.0, 0.0),
+                Column3(0.0, 0.0, 0.0),
+                Column3(0.0, 0.0, 0.0),
+                Column3(0.0, 0.0, 0.0),
+            ),
+            MatrixType::M4x4 => MatrixUniformValue::M4x4(
+                Column4(0.0, 0.0, 0.0, 0.0),
+                Column4(0.0, 0.0, 0.0, 0.0),
+                Column4(0.0, 0.0, 0.0, 0.0),
+                Column4(0.0, 0.0, 0.0, 0.0),
+            ),
         })
     }
 
-    fn show_size_selector(ui: &Ui, group_index: usize, binding_index: usize, size_index: usize, message: &mut Option<UniformEditEvent>) {
+    fn show_size_selector(
+        ui: &Ui,
+        group_index: usize,
+        binding_index: usize,
+        size_index: usize,
+        message: &mut Option<UniformEditEvent>,
+    ) {
         const MATRIX_SIZES: &[MatrixType] = &[
             MatrixType::M2x2,
             MatrixType::M3x2,
@@ -155,11 +189,15 @@ impl MatrixUniformValue {
             &mut selection,
             MATRIX_SIZES,
             |unitype| unitype.into(),
-            3
+            3,
         ) {
             let selected_type = MATRIX_SIZES[selection];
             if selected_type != MATRIX_SIZES[size_index] {
-                *message = Some(UniformEditEvent::ChangeMatrixSize(selected_type, group_index, binding_index))
+                *message = Some(UniformEditEvent::ChangeMatrixSize(
+                    selected_type,
+                    group_index,
+                    binding_index,
+                ))
             }
         };
     }
@@ -168,7 +206,6 @@ impl MatrixUniformValue {
         UniformValue::Transform(TransformUniformValue::default())
     }
 }
-
 
 impl ImguiUniformSelectable for MatrixUniformValue {
     fn cast_to(&self, casted_type: UniformType) -> UniformValue {
@@ -181,56 +218,102 @@ impl ImguiUniformSelectable for MatrixUniformValue {
         }
     }
 
-    fn show_editor(&mut self, ui: &Ui, group_index: usize, binding_index: usize, val_name: &mut String) -> Option<UniformEditEvent> {
+    fn show_editor(
+        &mut self,
+        ui: &Ui,
+        group_index: usize,
+        binding_index: usize,
+        val_name: &mut String,
+    ) -> Option<UniformEditEvent> {
         let mut message = None;
-        UniformValue::show_primitive_selector(ui, group_index, binding_index, &mut message, 6, val_name);
+        UniformValue::show_primitive_selector(
+            ui,
+            group_index,
+            binding_index,
+            &mut message,
+            6,
+            val_name,
+        );
         ui.same_line();
         match self {
             MatrixUniformValue::M2x2(c1, c2) => {
-                MatrixUniformValue::show_size_selector(ui, group_index, binding_index, 0, &mut message);
+                MatrixUniformValue::show_size_selector(
+                    ui,
+                    group_index,
+                    binding_index,
+                    0,
+                    &mut message,
+                );
                 let vc1 = c1.values();
                 let vc2 = c2.values();
                 let mut r1 = [vc1[0], vc2[0]];
-                if ui.input_float2(format!("##m_edit_1_{group_index}_{binding_index}"), &mut r1).build() {
+                if ui
+                    .input_float2(format!("##m_edit_1_{group_index}_{binding_index}"), &mut r1)
+                    .build()
+                {
                     c1.0 = r1[0];
                     c2.0 = r1[1];
                     message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
                 let mut r2 = [vc1[1], vc2[1]];
-                if ui.input_float2(format!("##m_edit_2_{group_index}_{binding_index}"), &mut r2).build() {
+                if ui
+                    .input_float2(format!("##m_edit_2_{group_index}_{binding_index}"), &mut r2)
+                    .build()
+                {
                     c1.1 = r2[0];
                     c2.1 = r2[1];
                     message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
-            },
+            }
             MatrixUniformValue::M3x2(c1, c2, c3) => {
-                MatrixUniformValue::show_size_selector(ui, group_index, binding_index, 1, &mut message);
+                MatrixUniformValue::show_size_selector(
+                    ui,
+                    group_index,
+                    binding_index,
+                    1,
+                    &mut message,
+                );
                 let vc1 = c1.values();
                 let vc2 = c2.values();
                 let vc3 = c3.values();
                 let mut r1 = [vc1[0], vc2[0], vc3[0]];
-                if ui.input_float3(format!("##m_edit_1_{group_index}_{binding_index}"), &mut r1).build() {
+                if ui
+                    .input_float3(format!("##m_edit_1_{group_index}_{binding_index}"), &mut r1)
+                    .build()
+                {
                     c1.0 = r1[0];
                     c2.0 = r1[1];
                     c3.0 = r1[2];
                     message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
                 let mut r2 = [vc1[1], vc2[1], vc3[1]];
-                if ui.input_float3(format!("##m_edit_2_{group_index}_{binding_index}"), &mut r2).build() {
+                if ui
+                    .input_float3(format!("##m_edit_2_{group_index}_{binding_index}"), &mut r2)
+                    .build()
+                {
                     c1.1 = r2[0];
                     c2.1 = r2[1];
                     c3.1 = r2[2];
                     message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
-            },
+            }
             MatrixUniformValue::M4x2(c1, c2, c3, c4) => {
-                MatrixUniformValue::show_size_selector(ui, group_index, binding_index, 2, &mut message);
+                MatrixUniformValue::show_size_selector(
+                    ui,
+                    group_index,
+                    binding_index,
+                    2,
+                    &mut message,
+                );
                 let vc1 = c1.values();
                 let vc2 = c2.values();
                 let vc3 = c3.values();
                 let vc4 = c4.values();
                 let mut r1 = [vc1[0], vc2[0], vc3[0], vc4[0]];
-                if ui.input_float4(format!("##m_edit_1_{group_index}_{binding_index}"), &mut r1).build() {
+                if ui
+                    .input_float4(format!("##m_edit_1_{group_index}_{binding_index}"), &mut r1)
+                    .build()
+                {
                     c1.0 = r1[0];
                     c2.0 = r1[1];
                     c3.0 = r1[2];
@@ -238,72 +321,114 @@ impl ImguiUniformSelectable for MatrixUniformValue {
                     message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
                 let mut r2 = [vc1[1], vc2[1], vc3[1], vc4[1]];
-                if ui.input_float4(format!("##m_edit_2_{group_index}_{binding_index}"), &mut r2).build() {
+                if ui
+                    .input_float4(format!("##m_edit_2_{group_index}_{binding_index}"), &mut r2)
+                    .build()
+                {
                     c1.1 = r2[0];
                     c2.1 = r2[1];
                     c3.1 = r2[2];
                     c4.1 = r2[3];
                     message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
-            },
+            }
             MatrixUniformValue::M2x3(c1, c2) => {
-                MatrixUniformValue::show_size_selector(ui, group_index, binding_index, 3, &mut message);
+                MatrixUniformValue::show_size_selector(
+                    ui,
+                    group_index,
+                    binding_index,
+                    3,
+                    &mut message,
+                );
                 let vc1 = c1.values();
                 let vc2 = c2.values();
                 let mut r1 = [vc1[0], vc2[0]];
-                if ui.input_float2(format!("##m_edit_1_{group_index}_{binding_index}"), &mut r1).build() {
+                if ui
+                    .input_float2(format!("##m_edit_1_{group_index}_{binding_index}"), &mut r1)
+                    .build()
+                {
                     c1.0 = r1[0];
                     c2.0 = r1[1];
                     message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
                 let mut r2 = [vc1[1], vc2[1]];
-                if ui.input_float2(format!("##m_edit_2_{group_index}_{binding_index}"), &mut r2).build() {
+                if ui
+                    .input_float2(format!("##m_edit_2_{group_index}_{binding_index}"), &mut r2)
+                    .build()
+                {
                     c1.1 = r2[0];
                     c2.1 = r2[1];
                     message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
                 let mut r3 = [vc1[2], vc2[2]];
-                if ui.input_float2(format!("##m_edit_3_{group_index}_{binding_index}"), &mut r3).build() {
+                if ui
+                    .input_float2(format!("##m_edit_3_{group_index}_{binding_index}"), &mut r3)
+                    .build()
+                {
                     c1.2 = r3[0];
                     c2.2 = r3[1];
                     message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
-            },
+            }
             MatrixUniformValue::M3x3(c1, c2, c3) => {
-                MatrixUniformValue::show_size_selector(ui, group_index, binding_index, 4, &mut message);
+                MatrixUniformValue::show_size_selector(
+                    ui,
+                    group_index,
+                    binding_index,
+                    4,
+                    &mut message,
+                );
                 let vc1 = c1.values();
                 let vc2 = c2.values();
                 let vc3 = c3.values();
                 let mut r1 = [vc1[0], vc2[0], vc3[0]];
-                if ui.input_float3(format!("##m_edit_1_{group_index}_{binding_index}"), &mut r1).build() {
+                if ui
+                    .input_float3(format!("##m_edit_1_{group_index}_{binding_index}"), &mut r1)
+                    .build()
+                {
                     c1.0 = r1[0];
                     c2.0 = r1[1];
                     c3.0 = r1[2];
                     message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
                 let mut r2 = [vc1[1], vc2[1], vc3[1]];
-                if ui.input_float3(format!("##m_edit_2_{group_index}_{binding_index}"), &mut r2).build() {
+                if ui
+                    .input_float3(format!("##m_edit_2_{group_index}_{binding_index}"), &mut r2)
+                    .build()
+                {
                     c1.1 = r2[0];
                     c2.1 = r2[1];
                     c3.1 = r2[2];
                     message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
                 let mut r3 = [vc1[2], vc2[2], vc3[2]];
-                if ui.input_float3(format!("##m_edit_3_{group_index}_{binding_index}"), &mut r3).build() {
+                if ui
+                    .input_float3(format!("##m_edit_3_{group_index}_{binding_index}"), &mut r3)
+                    .build()
+                {
                     c1.2 = r3[0];
                     c2.2 = r3[1];
                     c3.2 = r3[2];
                     message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
-            },
+            }
             MatrixUniformValue::M4x3(c1, c2, c3, c4) => {
-                MatrixUniformValue::show_size_selector(ui, group_index, binding_index, 5, &mut message);
+                MatrixUniformValue::show_size_selector(
+                    ui,
+                    group_index,
+                    binding_index,
+                    5,
+                    &mut message,
+                );
                 let vc1 = c1.values();
                 let vc2 = c2.values();
                 let vc3 = c3.values();
                 let vc4 = c4.values();
                 let mut r1 = [vc1[0], vc2[0], vc3[0], vc4[0]];
-                if ui.input_float4(format!("##m_edit_1_{group_index}_{binding_index}"), &mut r1).build() {
+                if ui
+                    .input_float4(format!("##m_edit_1_{group_index}_{binding_index}"), &mut r1)
+                    .build()
+                {
                     c1.0 = r1[0];
                     c2.0 = r1[1];
                     c3.0 = r1[2];
@@ -311,7 +436,10 @@ impl ImguiUniformSelectable for MatrixUniformValue {
                     message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
                 let mut r2 = [vc1[1], vc2[1], vc3[1], vc4[1]];
-                if ui.input_float4(format!("##m_edit_2_{group_index}_{binding_index}"), &mut r2).build() {
+                if ui
+                    .input_float4(format!("##m_edit_2_{group_index}_{binding_index}"), &mut r2)
+                    .build()
+                {
                     c1.1 = r2[0];
                     c2.1 = r2[1];
                     c3.1 = r2[2];
@@ -319,85 +447,133 @@ impl ImguiUniformSelectable for MatrixUniformValue {
                     message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
                 let mut r3 = [vc1[2], vc2[2], vc3[2], vc4[2]];
-                if ui.input_float4(format!("##m_edit_3_{group_index}_{binding_index}"), &mut r3).build() {
+                if ui
+                    .input_float4(format!("##m_edit_3_{group_index}_{binding_index}"), &mut r3)
+                    .build()
+                {
                     c1.2 = r3[0];
                     c2.2 = r3[1];
                     c3.2 = r3[2];
                     c4.2 = r3[3];
                     message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
-            },
+            }
             MatrixUniformValue::M2x4(c1, c2) => {
-                MatrixUniformValue::show_size_selector(ui, group_index, binding_index, 6, &mut message);
+                MatrixUniformValue::show_size_selector(
+                    ui,
+                    group_index,
+                    binding_index,
+                    6,
+                    &mut message,
+                );
                 let vc1 = c1.values();
                 let vc2 = c2.values();
                 let mut r1 = [vc1[0], vc2[0]];
-                if ui.input_float2(format!("##m_edit_1_{group_index}_{binding_index}"), &mut r1).build() {
+                if ui
+                    .input_float2(format!("##m_edit_1_{group_index}_{binding_index}"), &mut r1)
+                    .build()
+                {
                     c1.0 = r1[0];
                     c2.0 = r1[1];
                     message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
                 let mut r2 = [vc1[1], vc2[1]];
-                if ui.input_float2(format!("##m_edit_2_{group_index}_{binding_index}"), &mut r2).build() {
+                if ui
+                    .input_float2(format!("##m_edit_2_{group_index}_{binding_index}"), &mut r2)
+                    .build()
+                {
                     c1.1 = r2[0];
                     c2.1 = r2[1];
                     message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
                 let mut r3 = [vc1[2], vc2[2]];
-                if ui.input_float2(format!("##m_edit_3_{group_index}_{binding_index}"), &mut r3).build() {
+                if ui
+                    .input_float2(format!("##m_edit_3_{group_index}_{binding_index}"), &mut r3)
+                    .build()
+                {
                     c1.2 = r3[0];
                     c2.2 = r3[1];
                     message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
                 let mut r4 = [vc1[3], vc2[3]];
-                if ui.input_float2(format!("##m_edit_4_{group_index}_{binding_index}"), &mut r4).build() {
+                if ui
+                    .input_float2(format!("##m_edit_4_{group_index}_{binding_index}"), &mut r4)
+                    .build()
+                {
                     c1.3 = r4[0];
                     c2.3 = r4[1];
                     message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
-            },
+            }
             MatrixUniformValue::M3x4(c1, c2, c3) => {
-                MatrixUniformValue::show_size_selector(ui, group_index, binding_index, 7, &mut message);
+                MatrixUniformValue::show_size_selector(
+                    ui,
+                    group_index,
+                    binding_index,
+                    7,
+                    &mut message,
+                );
                 let vc1 = c1.values();
                 let vc2 = c2.values();
                 let vc3 = c3.values();
                 let mut r1 = [vc1[0], vc2[0], vc3[0]];
-                if ui.input_float3(format!("##m_edit_1_{group_index}_{binding_index}"), &mut r1).build() {
+                if ui
+                    .input_float3(format!("##m_edit_1_{group_index}_{binding_index}"), &mut r1)
+                    .build()
+                {
                     c1.0 = r1[0];
                     c2.0 = r1[1];
                     c3.0 = r1[2];
                     message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
                 let mut r2 = [vc1[1], vc2[1], vc3[1]];
-                if ui.input_float3(format!("##m_edit_2_{group_index}_{binding_index}"), &mut r2).build() {
+                if ui
+                    .input_float3(format!("##m_edit_2_{group_index}_{binding_index}"), &mut r2)
+                    .build()
+                {
                     c1.1 = r2[0];
                     c2.1 = r2[1];
                     c3.1 = r2[2];
                     message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
                 let mut r3 = [vc1[2], vc2[2], vc3[2]];
-                if ui.input_float3(format!("##m_edit_3_{group_index}_{binding_index}"), &mut r3).build() {
+                if ui
+                    .input_float3(format!("##m_edit_3_{group_index}_{binding_index}"), &mut r3)
+                    .build()
+                {
                     c1.2 = r3[0];
                     c2.2 = r3[1];
                     c3.2 = r3[2];
                     message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
                 let mut r4 = [vc1[3], vc2[3], vc3[3]];
-                if ui.input_float3(format!("##m_edit_4_{group_index}_{binding_index}"), &mut r4).build() {
+                if ui
+                    .input_float3(format!("##m_edit_4_{group_index}_{binding_index}"), &mut r4)
+                    .build()
+                {
                     c1.3 = r4[0];
                     c2.3 = r4[1];
                     c3.3 = r4[2];
                     message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
-            },
+            }
             MatrixUniformValue::M4x4(c1, c2, c3, c4) => {
-                MatrixUniformValue::show_size_selector(ui, group_index, binding_index, 8, &mut message);
+                MatrixUniformValue::show_size_selector(
+                    ui,
+                    group_index,
+                    binding_index,
+                    8,
+                    &mut message,
+                );
                 let vc1 = c1.values();
                 let vc2 = c2.values();
                 let vc3 = c3.values();
                 let vc4 = c4.values();
                 let mut r1 = [vc1[0], vc2[0], vc3[0], vc4[0]];
-                if ui.input_float4(format!("##m_edit_1_{group_index}_{binding_index}"), &mut r1).build() {
+                if ui
+                    .input_float4(format!("##m_edit_1_{group_index}_{binding_index}"), &mut r1)
+                    .build()
+                {
                     c1.0 = r1[0];
                     c2.0 = r1[1];
                     c3.0 = r1[2];
@@ -405,7 +581,10 @@ impl ImguiUniformSelectable for MatrixUniformValue {
                     message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
                 let mut r2 = [vc1[1], vc2[1], vc3[1], vc4[1]];
-                if ui.input_float4(format!("##m_edit_2_{group_index}_{binding_index}"), &mut r2).build() {
+                if ui
+                    .input_float4(format!("##m_edit_2_{group_index}_{binding_index}"), &mut r2)
+                    .build()
+                {
                     c1.1 = r2[0];
                     c2.1 = r2[1];
                     c3.1 = r2[2];
@@ -413,7 +592,10 @@ impl ImguiUniformSelectable for MatrixUniformValue {
                     message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
                 let mut r3 = [vc1[2], vc2[2], vc3[2], vc4[2]];
-                if ui.input_float4(format!("##m_edit_3_{group_index}_{binding_index}"), &mut r3).build() {
+                if ui
+                    .input_float4(format!("##m_edit_3_{group_index}_{binding_index}"), &mut r3)
+                    .build()
+                {
                     c1.2 = r3[0];
                     c2.2 = r3[1];
                     c3.2 = r3[2];
@@ -421,14 +603,17 @@ impl ImguiUniformSelectable for MatrixUniformValue {
                     message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
                 let mut r4 = [vc1[3], vc2[3], vc3[3], vc4[3]];
-                if ui.input_float4(format!("##m_edit_4_{group_index}_{binding_index}"), &mut r4).build() {
+                if ui
+                    .input_float4(format!("##m_edit_4_{group_index}_{binding_index}"), &mut r4)
+                    .build()
+                {
                     c1.3 = r4[0];
                     c2.3 = r4[1];
                     c3.3 = r4[2];
                     c4.3 = r4[3];
                     message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                 }
-            },
+            }
         };
         message
     }
@@ -438,12 +623,33 @@ impl ImguiUniformSelectable for MatrixUniformValue {
             MatrixUniformValue::M2x2(c1, c2) => vec![c1.to_le_bytes(), c2.to_le_bytes()],
             MatrixUniformValue::M2x3(c1, c2) => vec![c1.to_le_bytes(), c2.to_le_bytes()],
             MatrixUniformValue::M2x4(c1, c2) => vec![c1.to_le_bytes(), c2.to_le_bytes()],
-            MatrixUniformValue::M3x2(c1, c2, c3) => vec![c1.to_le_bytes(), c2.to_le_bytes(), c3.to_le_bytes()],
-            MatrixUniformValue::M3x3(c1, c2, c3) => vec![c1.to_le_bytes(), c2.to_le_bytes(), c3.to_le_bytes()],
-            MatrixUniformValue::M3x4(c1, c2, c3) => vec![c1.to_le_bytes(), c2.to_le_bytes(), c3.to_le_bytes()],
-            MatrixUniformValue::M4x2(c1, c2, c3, c4) => vec![c1.to_le_bytes(), c2.to_le_bytes(), c3.to_le_bytes(), c4.to_le_bytes()],
-            MatrixUniformValue::M4x3(c1, c2, c3, c4) => vec![c1.to_le_bytes(), c2.to_le_bytes(), c3.to_le_bytes(), c4.to_le_bytes()],
-            MatrixUniformValue::M4x4(c1, c2, c3, c4) => vec![c1.to_le_bytes(), c2.to_le_bytes(), c3.to_le_bytes(), c4.to_le_bytes()],
+            MatrixUniformValue::M3x2(c1, c2, c3) => {
+                vec![c1.to_le_bytes(), c2.to_le_bytes(), c3.to_le_bytes()]
+            }
+            MatrixUniformValue::M3x3(c1, c2, c3) => {
+                vec![c1.to_le_bytes(), c2.to_le_bytes(), c3.to_le_bytes()]
+            }
+            MatrixUniformValue::M3x4(c1, c2, c3) => {
+                vec![c1.to_le_bytes(), c2.to_le_bytes(), c3.to_le_bytes()]
+            }
+            MatrixUniformValue::M4x2(c1, c2, c3, c4) => vec![
+                c1.to_le_bytes(),
+                c2.to_le_bytes(),
+                c3.to_le_bytes(),
+                c4.to_le_bytes(),
+            ],
+            MatrixUniformValue::M4x3(c1, c2, c3, c4) => vec![
+                c1.to_le_bytes(),
+                c2.to_le_bytes(),
+                c3.to_le_bytes(),
+                c4.to_le_bytes(),
+            ],
+            MatrixUniformValue::M4x4(c1, c2, c3, c4) => vec![
+                c1.to_le_bytes(),
+                c2.to_le_bytes(),
+                c3.to_le_bytes(),
+                c4.to_le_bytes(),
+            ],
         };
 
         columns.into_iter().flatten().collect()
@@ -462,7 +668,6 @@ impl ImguiMatrix for MatrixUniformValue {
     }
 }
 
-
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub(crate) enum MatrixType {
     M2x2,
@@ -477,7 +682,6 @@ pub(crate) enum MatrixType {
     M4x3,
     M4x4,
 }
-
 
 impl<'a> From<&'a MatrixType> for Cow<'static, str> {
     fn from(val: &'a MatrixType) -> Cow<'static, str> {

@@ -5,15 +5,21 @@ use imgui::Ui;
 
 use crate::imgui_state::UniformEditEvent;
 
-pub(crate) use self::{matrix::MatrixType, scalar::{ScalarType, ScalarUniformValue}, vec::VecType};
+pub(crate) use self::{
+    matrix::MatrixType,
+    scalar::{ScalarType, ScalarUniformValue},
+    vec::VecType,
+};
 use self::{matrix::MatrixUniformValue, transform::TransformUniformValue, vec::VectorUniformValue};
 
-use super::{CameraUniform, ImguiMatrix, ImguiScalar, ImguiUniformSelectable, ImguiVec, DEFAULT_U32_UNIFORM};
+use super::{
+    CameraUniform, ImguiMatrix, ImguiScalar, ImguiUniformSelectable, ImguiVec, DEFAULT_U32_UNIFORM,
+};
 
-mod scalar;
-mod vec;
 mod matrix;
+mod scalar;
 mod transform;
+mod vec;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum BuiltinValue {
@@ -22,20 +28,26 @@ pub(crate) enum BuiltinValue {
         position: Point3<f32>,
         yaw: f32,
         pitch: f32,
-        enabled: bool
+        enabled: bool,
     },
 }
 impl BuiltinValue {
     fn to_le_bytes(self) -> Vec<u8> {
         match self {
             BuiltinValue::Time => 0u32.to_le_bytes().into(),
-            BuiltinValue::Camera {..} => self.calc_matrix().to_le_bytes(),
+            BuiltinValue::Camera { .. } => self.calc_matrix().to_le_bytes(),
         }
     }
 
     fn calc_matrix(&self) -> CameraUniform {
         match self {
-            BuiltinValue::Camera { position, yaw, pitch, enabled } => {
+            BuiltinValue::Camera {
+                position,
+                yaw,
+                pitch,
+                enabled,
+            } => {
+                #[rustfmt::skip]
                 let (view_matrix, projection_matrix, inverse_view, inverse_proj) = if *enabled {
                     let view = Matrix4::look_to_rh(
                         *position,
@@ -50,31 +62,43 @@ impl BuiltinValue {
 
                     let projection = cgmath::perspective(Rad::from(Deg(45.0)), 1.0, 0.1, 100.0);
 
-                    (view, projection, view.inverse_transform().unwrap_or_else(|| {println!("Uninversable matrix!");Matrix4::identity()}), projection.inverse_transform().unwrap_or_else(|| {println!("Uninversable matrix!");Matrix4::identity()}))
+                    (
+                        view,
+                        projection,
+                        view.inverse_transform().unwrap_or_else(|| {
+                            println!("Uninversable matrix!");
+                            Matrix4::identity()
+                        }),
+                        projection.inverse_transform().unwrap_or_else(|| {
+                            println!("Uninversable matrix!");
+                            Matrix4::identity()
+                        }),
+                    )
                 } else {
-                    (Matrix4::new(
+                    (
+                        Matrix4::new(
                         1.0, 0.0, 0.0, 0.0,
                         0.0, 1.0, 0.0, 0.0,
                         0.0, 0.0, 1.0, 0.0,
                         0.0, 0.0, 0.0, 1.0
-                    ),
-                    Matrix4::new(
-                        1.0, 0.0, 0.0, 0.0,
-                        0.0, 1.0, 0.0, 0.0,
-                        0.0, 0.0, 1.0, 0.0,
-                        0.0, 0.0, 0.0, 1.0
-                    ),
-                    Matrix4::new(
-                        1.0, 0.0, 0.0, 0.0,
-                        0.0, 1.0, 0.0, 0.0,
-                        0.0, 0.0, 1.0, 0.0,
-                        0.0, 0.0, 0.0, 1.0
-                    ),
-                    Matrix4::new(
-                        1.0, 0.0, 0.0, 0.0,
-                        0.0, 1.0, 0.0, 0.0,
-                        0.0, 0.0, 1.0, 0.0,
-                        0.0, 0.0, 0.0, 1.0
+                        ),
+                        Matrix4::new(
+                            1.0, 0.0, 0.0, 0.0,
+                            0.0, 1.0, 0.0, 0.0,
+                            0.0, 0.0, 1.0, 0.0,
+                            0.0, 0.0, 0.0, 1.0
+                        ),
+                        Matrix4::new(
+                            1.0, 0.0, 0.0, 0.0,
+                            0.0, 1.0, 0.0, 0.0,
+                            0.0, 0.0, 1.0, 0.0,
+                            0.0, 0.0, 0.0, 1.0
+                        ),
+                        Matrix4::new(
+                            1.0, 0.0, 0.0, 0.0,
+                            0.0, 1.0, 0.0, 0.0,
+                            0.0, 0.0, 1.0, 0.0,
+                            0.0, 0.0, 0.0, 1.0
                     ))
                 };
 
@@ -83,10 +107,10 @@ impl BuiltinValue {
                     view_matrix,
                     projection_matrix,
                     inverse_view_matrix: inverse_view,
-                    inverse_projection_matrix: inverse_proj
+                    inverse_projection_matrix: inverse_proj,
                 }
-            },
-            _ => unreachable!()
+            }
+            _ => unreachable!(),
         }
     }
 }
@@ -101,27 +125,39 @@ fn cast_i32_u32(v: i32) -> u32 {
     res.unwrap_or(DEFAULT_U32_UNIFORM)
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum UniformValue {
     BuiltIn(BuiltinValue),
     Scalar(ScalarUniformValue),
     Vector(VectorUniformValue),
     Matrix(MatrixUniformValue),
-    Transform(TransformUniformValue)
+    Transform(TransformUniformValue),
 }
 
 trait ExtendedUi {
-    fn matrix_combo<V, L>(&self, label: impl AsRef<str>, current_item: &mut usize, items: &[V], label_fn: L, column_amount: i32) -> bool
+    fn matrix_combo<V, L>(
+        &self,
+        label: impl AsRef<str>,
+        current_item: &mut usize,
+        items: &[V],
+        label_fn: L,
+        column_amount: i32,
+    ) -> bool
     where
         for<'b> L: Fn(&'b V) -> Cow<'b, str>;
-
 }
 
 impl ExtendedUi for Ui {
-    fn matrix_combo<V, L>(&self, label: impl AsRef<str>, current_item: &mut usize, items: &[V], label_fn: L, column_amount: i32) -> bool
+    fn matrix_combo<V, L>(
+        &self,
+        label: impl AsRef<str>,
+        current_item: &mut usize,
+        items: &[V],
+        label_fn: L,
+        column_amount: i32,
+    ) -> bool
     where
-        for<'b> L: Fn(&'b V) -> Cow<'b, str>
+        for<'b> L: Fn(&'b V) -> Cow<'b, str>,
     {
         let mut ret = false;
         let mut selected = label_fn(&items[*current_item]);
@@ -134,7 +170,8 @@ impl ExtendedUi for Ui {
                 }
                 self.columns(column_amount, "columns", true);
                 // Create a "selectable"
-                let clicked = self.selectable_config(cur.clone())
+                let clicked = self
+                    .selectable_config(cur.clone())
                     .selected(selected == cur)
                     .build();
                 // When item is clicked, store it
@@ -156,7 +193,7 @@ pub(crate) enum UniformType {
     Scalar(ScalarType),
     Vec(VecType),
     Matrix(MatrixType),
-    Transform
+    Transform,
 }
 
 impl ImguiUniformSelectable for UniformValue {
@@ -170,13 +207,19 @@ impl ImguiUniformSelectable for UniformValue {
         }
     }
 
-    fn show_editor(&mut self, ui: &Ui, group_index: usize, binding_index: usize, val_name: &mut String) -> Option<UniformEditEvent> {
+    fn show_editor(
+        &mut self,
+        ui: &Ui,
+        group_index: usize,
+        binding_index: usize,
+        val_name: &mut String,
+    ) -> Option<UniformEditEvent> {
         match self {
             UniformValue::BuiltIn(builtin) => match builtin {
                 BuiltinValue::Time => {
                     ui.text(format!("({binding_index}) Time (u32)"));
                     None
-                },
+                }
                 BuiltinValue::Camera {
                     position,
                     yaw,
@@ -192,34 +235,53 @@ impl ImguiUniformSelectable for UniformValue {
                         ui.text("Position (x,y,z):");
                         ui.indent();
                         let mut pos = [position.x, position.y, position.z];
-                        if ui.input_float3(format!("##camera_{group_index}_{binding_index}"), &mut pos).build() {
+                        if ui
+                            .input_float3(
+                                format!("##camera_{group_index}_{binding_index}"),
+                                &mut pos,
+                            )
+                            .build()
+                        {
                             *position = Point3 {
                                 x: pos[0],
                                 y: pos[1],
-                                z: pos[2]
+                                z: pos[2],
                             };
-                            message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
+                            message =
+                                Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                         };
                         ui.unindent();
                         ui.text("Yaw");
                         let mut dyaw: Deg<f32> = Rad(*yaw).into();
-                        if ui.slider(format!("##yaw_{group_index}_{binding_index}"), -89.9, 89.9, &mut dyaw.0) {
+                        if ui.slider(
+                            format!("##yaw_{group_index}_{binding_index}"),
+                            -89.9,
+                            89.9,
+                            &mut dyaw.0,
+                        ) {
                             let ryaw: Rad<f32> = dyaw.into();
 
                             *yaw = ryaw.0;
-                            message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
+                            message =
+                                Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                         }
                         ui.text("Pitch");
                         let mut dpitch: Deg<f32> = Rad(*pitch).into();
-                        if ui.slider(format!("##pitch_{group_index}_{binding_index}"), -89.9, 89.9, &mut dpitch.0) {
+                        if ui.slider(
+                            format!("##pitch_{group_index}_{binding_index}"),
+                            -89.9,
+                            89.9,
+                            &mut dpitch.0,
+                        ) {
                             let rpitch: Rad<f32> = dpitch.into();
 
                             *pitch = rpitch.0;
-                            message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
+                            message =
+                                Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                         }
                     }
                     message
-                },
+                }
             },
             UniformValue::Scalar(s) => s.show_editor(ui, group_index, binding_index, val_name),
             UniformValue::Vector(v) => v.show_editor(ui, group_index, binding_index, val_name),
@@ -286,7 +348,14 @@ impl ImguiMatrix for UniformValue {
 }
 
 impl UniformValue {
-    fn show_primitive_selector(ui: &Ui, group_index: usize, binding_index: usize, message: &mut Option<UniformEditEvent>, type_index: usize, val_name: &mut String) {
+    fn show_primitive_selector(
+        ui: &Ui,
+        group_index: usize,
+        binding_index: usize,
+        message: &mut Option<UniformEditEvent>,
+        type_index: usize,
+        val_name: &mut String,
+    ) {
         const TYPES: &[UniformType] = &[
             UniformType::Scalar(ScalarType::U32),
             UniformType::Scalar(ScalarType::I32),
@@ -295,7 +364,7 @@ impl UniformValue {
             UniformType::Vec(VecType::Vec3(ScalarType::F32)),
             UniformType::Vec(VecType::Vec4(ScalarType::F32)),
             UniformType::Matrix(MatrixType::M4x4),
-            UniformType::Transform
+            UniformType::Transform,
         ];
         const COMBO_WIDTH: f32 = 95.0;
         const VAR_NAME_WIDTH: f32 = 150.0;
@@ -303,18 +372,26 @@ impl UniformValue {
         ui.text(format!("({binding_index})"));
         ui.same_line();
         ui.set_next_item_width(VAR_NAME_WIDTH);
-        ui.input_text(format!("##name_edit{group_index}_{binding_index}"), val_name).build();
+        ui.input_text(
+            format!("##name_edit{group_index}_{binding_index}"),
+            val_name,
+        )
+        .build();
         ui.set_next_item_width(COMBO_WIDTH);
         let mut selection = type_index;
         if ui.combo(
             format!("##combo_g{group_index}_b{binding_index}"),
             &mut selection,
             TYPES,
-            |unitype| unitype.into()
+            |unitype| unitype.into(),
         ) {
             let selected_type = TYPES[selection];
             if selected_type != TYPES[type_index] {
-                *message = Some(UniformEditEvent::ChangeType(selected_type, group_index, binding_index))
+                *message = Some(UniformEditEvent::ChangeType(
+                    selected_type,
+                    group_index,
+                    binding_index,
+                ))
             }
         };
     }
