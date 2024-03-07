@@ -479,9 +479,9 @@ pub(crate) enum MatrixType {
 }
 
 
-impl<'a> Into<Cow<'static, str>> for &'a MatrixType {
-    fn into(self) -> Cow<'static, str> {
-        match self {
+impl<'a> From<&'a MatrixType> for Cow<'static, str> {
+    fn from(val: &'a MatrixType) -> Cow<'static, str> {
+        match val {
             MatrixType::M2x2 => Cow::Borrowed("2x2"),
             MatrixType::M2x3 => Cow::Borrowed("2x3"),
             MatrixType::M2x4 => Cow::Borrowed("2x4"),

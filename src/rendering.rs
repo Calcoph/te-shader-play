@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use wgpu::{core::command::{RenderPassError, RenderPassErrorInner}, Color, CommandEncoder, CommandEncoderDescriptor, IndexFormat, LoadOp, Operations, RenderPassColorAttachment, RenderPassDescriptor, StoreOp, SurfaceTexture, TextureView};
+use wgpu::{core::command::{RenderPassError, RenderPassErrorInner}, CommandEncoder, CommandEncoderDescriptor, IndexFormat, LoadOp, Operations, RenderPassColorAttachment, RenderPassDescriptor, StoreOp, SurfaceTexture, TextureView};
 use winit::window::{Window, WindowLevel};
 
 use crate::{imgui_state::Message, State};
@@ -38,7 +38,7 @@ pub fn render(output: SurfaceTexture, state: &mut State, window: &Window) {
     let (imgui_encoder, message) = state.im_state.render(window, &state.gpu, &view);
     handle_message(state, message, window);
     let view = state.im_state.get_texture_view();
-    let res = draw_image(state, &mut encoder, &view);
+    let res = draw_image(state, &mut encoder, view);
     let message = handle_render_pass_err(state, res);
     handle_message(state, message, window);
     state.gpu.queue.submit(
@@ -46,8 +46,7 @@ pub fn render(output: SurfaceTexture, state: &mut State, window: &Window) {
             encoder.finish(),
             imgui_encoder.finish()
         ].into_iter()
-        .filter(|encoder| encoder.is_ok())
-        .map(|encoder| encoder.unwrap())
+        .filter_map(|encoder| encoder.ok())
     );
     output.present();
 }
@@ -67,7 +66,7 @@ fn draw_image(state: &State, encoder: &mut CommandEncoder, view: &TextureView) -
     let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
         label: None,
         color_attachments: &[Some(RenderPassColorAttachment {
-            view: &view,
+            view,
             resolve_target: None,
             ops: Operations {
                 load: LoadOp::Clear(background_color),

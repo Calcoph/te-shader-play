@@ -465,7 +465,7 @@ impl VecUniformValue for Vec4UniformValue {
             Vec4UniformValue::F32(x, y, z, w) => match scalar_type {
                 ScalarType::U32 => [SP{u32: cast_f32_u32(*x)}, SP{u32: cast_f32_u32(*y)}, SP{u32: cast_f32_u32(*z)}, SP{u32: cast_f32_u32(*w)}],
                 ScalarType::I32 => [SP{i32: *x as i32}, SP{i32: *y as i32}, SP{i32: *z as i32}, SP{i32: *w as i32}],
-                ScalarType::F32 => [SP{f32: *x}, SP{f32: *y}, SP{f32: *z}, SP{f32: *w as f32}],
+                ScalarType::F32 => [SP{f32: *x}, SP{f32: *y}, SP{f32: *z}, SP{f32: *w}],
             },
         };
 
@@ -636,9 +636,9 @@ impl ImguiVec for VectorUniformValue {
 }
 
 
-impl<'a> Into<Cow<'static, str>> for &'a VecType {
-    fn into(self) -> Cow<'static, str> {
-        match self {
+impl<'a> From<&'a VecType> for Cow<'static, str> {
+    fn from(val: &'a VecType) -> Cow<'static, str> {
+        match val {
             VecType::Vec2(_) => Cow::Borrowed("vec2"),
             VecType::Vec3(_) => Cow::Borrowed("vec3"),
             VecType::Vec4(_) => Cow::Borrowed("vec4"),

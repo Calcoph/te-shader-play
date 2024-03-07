@@ -134,13 +134,13 @@ impl Vertices {
 
         self.vertex_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("vertex buffer"),
-            contents: &self.vertices.iter().map(|vert| vert.to_le_bytes()).flatten().collect::<Vec<_>>(),
+            contents: &self.vertices.iter().flat_map(|vert| vert.to_le_bytes()).collect::<Vec<_>>(),
             usage: BufferUsages::VERTEX,
         }).unwrap();
 
         self.index_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("index buffer"),
-            contents: &self.indices.iter().map(|vert| vert.to_le_bytes()).flatten().collect::<Vec<_>>(),
+            contents: &self.indices.iter().flat_map(|vert| vert.to_le_bytes()).collect::<Vec<_>>(),
             usage: BufferUsages::INDEX,
         }).unwrap();
     }
@@ -261,7 +261,7 @@ fn fs_main() -> @location(0) vec4<f32> {
         let im_state = ImState::new(window, &gpu);
         let current_shader = Shader {
             contents: current_shader,
-            shader: shader
+            shader
         };
         let (vertices, indices) = Vertices::default_vertices();
         let mut state = State {
@@ -273,13 +273,13 @@ fn fs_main() -> @location(0) vec4<f32> {
             vertices: Vertices {
                 vertex_buffer: gpu.device.create_buffer_init(&BufferInitDescriptor {
                     label: Some("Vertex buffer"),
-                    contents: &vertices.iter().map(|vert| vert.to_le_bytes()).flatten().collect::<Vec<_>>(),
+                    contents: &vertices.iter().flat_map(|vert| vert.to_le_bytes()).collect::<Vec<_>>(),
                     usage: BufferUsages::VERTEX
                 }).unwrap(),
-                vertices: vertices,
+                vertices,
                 index_buffer: gpu.device.create_buffer_init(&BufferInitDescriptor {
                     label: Some("Index buffer"),
-                    contents: &indices.iter().map(|ind| (*ind).to_le_bytes()).flatten().collect::<Vec<_>>(),
+                    contents: &indices.iter().flat_map(|ind| (*ind).to_le_bytes()).collect::<Vec<_>>(),
                     usage: BufferUsages::INDEX
                 }).unwrap(),
                 indices,

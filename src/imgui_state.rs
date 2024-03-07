@@ -94,7 +94,7 @@ impl UniformBinding {
         }).unwrap();
 
         UniformBinding {
-            buffer: buffer,
+            buffer,
             value,
             name: "unnamed".to_string()
         }
@@ -717,7 +717,7 @@ impl ImState {
             .expect("Failed to prepare frame");
         let ui = self.context.frame();
 
-        let message = self.ui.create_ui(&ui, &gpu.device, &gpu.queue);
+        let message = self.ui.create_ui(ui, &gpu.device, &gpu.queue);
 
         let mut encoder = gpu
             .device

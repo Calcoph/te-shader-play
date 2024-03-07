@@ -129,27 +129,27 @@ impl ScalarUniformValue {
         }
     }
 
-    fn to_vec2(&self) -> Vec2UniformValue {
+    fn to_vec2(self) -> Vec2UniformValue {
         match self {
-            ScalarUniformValue::U32(s) => Vec2UniformValue::U32(*s, 0),
-            ScalarUniformValue::I32(s) => Vec2UniformValue::I32(*s, 0),
-            ScalarUniformValue::F32(s) => Vec2UniformValue::F32(*s, 0.0),
+            ScalarUniformValue::U32(s) => Vec2UniformValue::U32(s, 0),
+            ScalarUniformValue::I32(s) => Vec2UniformValue::I32(s, 0),
+            ScalarUniformValue::F32(s) => Vec2UniformValue::F32(s, 0.0),
         }
     }
 
-    fn to_vec3(&self) -> Vec3UniformValue {
+    fn to_vec3(self) -> Vec3UniformValue {
         match self {
-            ScalarUniformValue::U32(s) => Vec3UniformValue::U32(*s, 0, 0),
-            ScalarUniformValue::I32(s) => Vec3UniformValue::I32(*s, 0, 0),
-            ScalarUniformValue::F32(s) => Vec3UniformValue::F32(*s, 0.0, 0.0),
+            ScalarUniformValue::U32(s) => Vec3UniformValue::U32(s, 0, 0),
+            ScalarUniformValue::I32(s) => Vec3UniformValue::I32(s, 0, 0),
+            ScalarUniformValue::F32(s) => Vec3UniformValue::F32(s, 0.0, 0.0),
         }
     }
 
-    fn to_vec4(&self) -> Vec4UniformValue {
+    fn to_vec4(self) -> Vec4UniformValue {
         match self {
-            ScalarUniformValue::U32(s) => Vec4UniformValue::U32(*s, 0, 0, 0),
-            ScalarUniformValue::I32(s) => Vec4UniformValue::I32(*s, 0, 0, 0),
-            ScalarUniformValue::F32(s) => Vec4UniformValue::F32(*s, 0.0, 0.0, 0.0),
+            ScalarUniformValue::U32(s) => Vec4UniformValue::U32(s, 0, 0, 0),
+            ScalarUniformValue::I32(s) => Vec4UniformValue::I32(s, 0, 0, 0),
+            ScalarUniformValue::F32(s) => Vec4UniformValue::F32(s, 0.0, 0.0, 0.0),
         }
     }
 
@@ -194,9 +194,9 @@ pub(crate) enum ScalarType {
     F32
 }
 
-impl<'a> Into<Cow<'static, str>> for &'a ScalarType {
-    fn into(self) -> Cow<'static, str> {
-        match self {
+impl<'a> From<&'a ScalarType> for Cow<'static, str> {
+    fn from(val: &'a ScalarType) -> Cow<'static, str> {
+        match val {
             ScalarType::U32 => Cow::Borrowed("u32"),
             ScalarType::I32 => Cow::Borrowed("i32"),
             ScalarType::F32 => Cow::Borrowed("f32"),

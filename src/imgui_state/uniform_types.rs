@@ -26,7 +26,7 @@ pub(crate) enum BuiltinValue {
     },
 }
 impl BuiltinValue {
-    fn to_le_bytes(&self) -> Vec<u8> {
+    fn to_le_bytes(self) -> Vec<u8> {
         match self {
             BuiltinValue::Time => 0u32.to_le_bytes().into(),
             BuiltinValue::Camera {..} => self.calc_matrix().to_le_bytes(),
@@ -320,9 +320,9 @@ impl UniformValue {
     }
 }
 
-impl<'a> Into<Cow<'a, str>> for &'a UniformType {
-    fn into(self) -> Cow<'static, str> {
-        match self {
+impl<'a> From<&'a UniformType> for Cow<'static, str> {
+    fn from(val: &'a UniformType) -> Cow<'static, str> {
+        match val {
             UniformType::Scalar(s) => s.into(),
             UniformType::Vec(v) => v.into(),
             UniformType::Matrix(_) => Cow::Borrowed("matrix"),
