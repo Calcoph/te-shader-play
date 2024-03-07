@@ -306,7 +306,9 @@ impl UniformGroup {
 pub(crate) struct CameraUniform {
     position: Point3<f32>,
     view_matrix: Matrix4<f32>,
-    projection_matrix: Matrix4<f32>
+    projection_matrix: Matrix4<f32>,
+    inverse_view_matrix: Matrix4<f32>,
+    inverse_projection_matrix: Matrix4<f32>,
 }
 
 type V4Iter = Chain<IntoIter<u8, 4>, Chain<IntoIter<u8, 4>, Chain<IntoIter<u8, 4>, IntoIter<u8, 4>>>>;
@@ -357,8 +359,10 @@ impl CameraUniform {
 
         let projection = get_matrix4_bytes(self.projection_matrix);
         let view = get_matrix4_bytes(self.view_matrix);
+        let inverse_view = get_matrix4_bytes(self.inverse_view_matrix);
+        let inverse_proj = get_matrix4_bytes(self.inverse_projection_matrix);
 
-        position.chain(projection.chain(view)).collect()
+        position.chain(projection.chain(view).chain(inverse_view).chain(inverse_proj)).collect()
     }
 }
 

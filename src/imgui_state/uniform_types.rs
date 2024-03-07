@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use cgmath::{Deg, InnerSpace, Matrix4, Point3, Rad, Vector3};
+use cgmath::{Deg, InnerSpace, Matrix4, Point3, Rad, SquareMatrix, Transform, Vector3};
 use imgui::Ui;
 
 use crate::imgui_state::UniformEditEvent;
@@ -36,7 +36,7 @@ impl BuiltinValue {
     fn calc_matrix(&self) -> CameraUniform {
         match self {
             BuiltinValue::Camera { position, yaw, pitch, enabled } => {
-                let (view_matrix, projection_matrix) = if *enabled {
+                let (view_matrix, projection_matrix, inverse_view, inverse_proj) = if *enabled {
                     let view = Matrix4::look_to_rh(
                         *position,
                         Vector3::new(
@@ -50,9 +50,21 @@ impl BuiltinValue {
 
                     let projection = cgmath::perspective(Rad::from(Deg(45.0)), 1.0, 0.1, 100.0);
 
-                    (view, projection)
+                    (view, projection, view.inverse_transform().unwrap_or_else(|| {println!("Uninversable matrix!");Matrix4::identity()}), projection.inverse_transform().unwrap_or_else(|| {println!("Uninversable matrix!");Matrix4::identity()}))
                 } else {
                     (Matrix4::new(
+                        1.0, 0.0, 0.0, 0.0,
+                        0.0, 1.0, 0.0, 0.0,
+                        0.0, 0.0, 1.0, 0.0,
+                        0.0, 0.0, 0.0, 1.0
+                    ),
+                    Matrix4::new(
+                        1.0, 0.0, 0.0, 0.0,
+                        0.0, 1.0, 0.0, 0.0,
+                        0.0, 0.0, 1.0, 0.0,
+                        0.0, 0.0, 0.0, 1.0
+                    ),
+                    Matrix4::new(
                         1.0, 0.0, 0.0, 0.0,
                         0.0, 1.0, 0.0, 0.0,
                         0.0, 0.0, 1.0, 0.0,
@@ -70,6 +82,8 @@ impl BuiltinValue {
                     position: *position,
                     view_matrix,
                     projection_matrix,
+                    inverse_view_matrix: inverse_view,
+                    inverse_projection_matrix: inverse_proj
                 }
             },
             _ => unreachable!()
@@ -170,7 +184,7 @@ impl ImguiUniformSelectable for UniformValue {
                     enabled,
                 } => {
                     let mut message = None;
-                    ui.text(format!("({binding_index}) Camera (struct {{vec4<f32>, mat4x4<f32>, mat4x4<f32>}})"));
+                    ui.text(format!("({binding_index}) Camera (struct {{\n    vec4<f32>,\n    mat4x4<f32>,\n    mat4x4<f32>,\n    mat4x4<f32>,\n    mat4x4<f32>\n}})"));
                     if ui.checkbox("Enabled", enabled) {
                         message = Some(UniformEditEvent::UpdateBuffer(group_index, binding_index))
                     }
