@@ -424,18 +424,19 @@ fn fs_main() -> @location(0) vec4<f32> {
     }
 
     pub fn refresh_shader(&mut self) {
-        let shader_contents = std::fs::read_to_string(Path::new("shaders").join(&self.current_shader_path)).unwrap();
-        match self.gpu.device.create_shader_module(ShaderModuleDescriptor {
-            label: None,
-            source: ShaderSource::Wgsl(shader_contents.clone().into()),
-        }) {
-            Ok(shader) => {
-                self.im_state.destroy_errors();
-                self.current_shader.contents = shader_contents;
-                self.current_shader.shader = shader;
-                self.refresh_pipeline()
-            },
-            Err(err) => self.handle_shader_err(err),
+        if let Ok(shader_contents) = std::fs::read_to_string(Path::new("shaders").join(&self.current_shader_path)) {
+            match self.gpu.device.create_shader_module(ShaderModuleDescriptor {
+                label: None,
+                source: ShaderSource::Wgsl(shader_contents.clone().into()),
+            }) {
+                Ok(shader) => {
+                    self.im_state.destroy_errors();
+                    self.current_shader.contents = shader_contents;
+                    self.current_shader.shader = shader;
+                    self.refresh_pipeline()
+                },
+                Err(err) => self.handle_shader_err(err),
+            };
         };
     }
 
