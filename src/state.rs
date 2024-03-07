@@ -597,9 +597,9 @@ fn fs_main() -> @location(0) vec4<f32> {
 
     fn auto_enable_camera(&mut self) {
         match self.im_state.ui.mesh_config {
-            MeshConfig::Screen2D => self.im_state.ui.inputs.enable_camera(false),
-            _ => self.im_state.ui.inputs.enable_camera(true),
-        }
+            MeshConfig::Screen2D => self.im_state.ui.inputs.enable_camera(false, &self.gpu.queue),
+            _ => self.im_state.ui.inputs.enable_camera(true, &self.gpu.queue),
+        };
     }
 
     pub(crate) fn get_background_color(&self) -> Color {

@@ -506,14 +506,16 @@ impl Uniforms {
             .unwrap();
     }
 
-    pub(crate) fn enable_camera(&mut self, enable: bool) {
+    pub(crate) fn enable_camera(&mut self, enable: bool, queue: &Queue) {
         let (g_index, b_index) = self.camera_uniform_location;
         let camera_binding = &mut self.groups[g_index].bindings[b_index];
 
         match &mut camera_binding.value {
             UniformValue::BuiltIn(BuiltinValue::Camera { enabled, .. }) => *enabled = enable,
             _ => unreachable!(),
-        }
+        };
+
+        self.update_buffer(g_index, b_index, queue)
     }
 
     pub(crate) fn define_binding(&mut self, group: u32, binding: u32, device: &Device) {
