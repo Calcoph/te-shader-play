@@ -1,7 +1,7 @@
 use std::{borrow::Cow, path::Path, time::{Duration, Instant}};
 
 use cgmath::num_traits::ToBytes;
-use wgpu::{core::{binding_model::LateMinBufferBindingSizeMismatch, command::{DrawError, RenderPassErrorInner}, pipeline::{CreateRenderPipelineError, CreateShaderModuleError}, validation::{BindingError, StageError}}, util::{BufferInitDescriptor, DeviceExt}, BlendState, Buffer, BufferUsages, ColorTargetState, ColorWrites, Device, FragmentState, FrontFace, MultisampleState, PipelineLayout, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, Queue, RenderPipeline, RenderPipelineDescriptor, ShaderModule, ShaderModuleDescriptor, ShaderSource, ShaderStages, Surface, SurfaceConfiguration, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode};
+use wgpu::{core::{binding_model::LateMinBufferBindingSizeMismatch, command::{DrawError, RenderPassErrorInner}, pipeline::{CreateRenderPipelineError, CreateShaderModuleError}, validation::{BindingError, StageError}}, util::{BufferInitDescriptor, DeviceExt}, BlendState, Buffer, BufferUsages, Color, ColorTargetState, ColorWrites, Device, FragmentState, FrontFace, MultisampleState, PipelineLayout, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, Queue, RenderPipeline, RenderPipelineDescriptor, ShaderModule, ShaderModuleDescriptor, ShaderSource, ShaderStages, Surface, SurfaceConfiguration, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode};
 use winit::window::Window;
 
 use crate::{imgui_state::{ImState, MeshConfig, Message, Uniforms}, rendering::RenderMessage};
@@ -522,6 +522,16 @@ fn fs_main() -> @location(0) vec4<f32> {
         match self.im_state.ui.mesh_config {
             MeshConfig::Screen2D => self.im_state.ui.inputs.enable_camera(false),
             _ => self.im_state.ui.inputs.enable_camera(true),
+        }
+    }
+
+    pub(crate) fn get_background_color(&self) -> Color {
+        let color = self.im_state.ui.background_color;
+        Color {
+            r: color[0] as f64,
+            g: color[1] as f64,
+            b: color[2] as f64,
+            a: color[3] as f64,
         }
     }
 }

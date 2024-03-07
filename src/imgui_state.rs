@@ -482,7 +482,8 @@ pub struct UiState {
     mesh_type: MeshType,
     pub mesh_config: MeshConfig,
     pub show_mesh: bool,
-    always_on_top: bool
+    always_on_top: bool,
+    pub background_color: [f32;4]
 }
 
 impl UiState {
@@ -497,7 +498,8 @@ impl UiState {
             mesh_type: MeshType::Screen2D,
             mesh_config: MeshConfig::Screen2D,
             show_mesh: false,
-            always_on_top: false
+            always_on_top: false,
+            background_color: [1.0,0.5,0.5,1.0],
         }
     }
 
@@ -540,6 +542,7 @@ impl UiState {
         });
 
         ui.window("Shader parameters").build(|| {
+            ui.color_edit4("Background color", &mut self.background_color);
             let mut edit_event = None;
             for (group_index, group) in self.inputs.groups.iter_mut().enumerate() {
                 if ui.collapsing_header(format!("Binding group {group_index}"), TreeNodeFlags::empty()) {

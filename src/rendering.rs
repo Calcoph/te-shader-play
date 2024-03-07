@@ -63,18 +63,14 @@ fn handle_message(state: &mut State, message: Option<Message>, window: &Window) 
 }
 
 fn draw_image(state: &State, encoder: &mut CommandEncoder, view: &TextureView) -> Result<(), RenderPassError> {
+    let background_color = state.get_background_color();
     let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
         label: None,
         color_attachments: &[Some(RenderPassColorAttachment {
             view: &view,
             resolve_target: None,
             ops: Operations {
-                load: LoadOp::Clear(Color {
-                    r: 1.0,
-                    g: 0.5,
-                    b: 0.5,
-                    a: 1.0,
-                }),
+                load: LoadOp::Clear(background_color),
                 store: StoreOp::Store,
             },
         })],
