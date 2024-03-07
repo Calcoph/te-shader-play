@@ -127,10 +127,10 @@ fn unprojectPoint(x: f32, y: f32, z: f32) -> vec3<f32> {
 fn vs_main(inp: VertexInput) -> VertexOutput {
     var out: VertexOutput;
     var pos = inp.pos;
-    out.nearPoint = unprojectPoint(pos.x, pos.z, 0.0);
-    out.farPoint = unprojectPoint(pos.x, pos.z, 1.0);
+    out.nearPoint = unprojectPoint(pos.x, pos.y, 0.0);
+    out.farPoint = unprojectPoint(pos.x, pos.y, 1.0);
     //out.clip_position = camera.projection * camera.view * vec4<f32>(pos.x, pos.y, pos.z, 1.0);
-    out.clip_position = vec4<f32>(pos.x, pos.z, pos.y, 1.0);
+    out.clip_position = vec4<f32>(pos.x, pos.y, pos.z, 1.0);
 
     out.uv = pos.xy;//unprojectPoint(out.clip_position.x, out.clip_position.y, 75.0).xy;
     return out;

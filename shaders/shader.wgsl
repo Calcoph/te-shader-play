@@ -23,8 +23,8 @@ fn vs_main(inp: VertexInput) -> VertexOutput {
     var out: VertexOutput;
     var pos = inp.pos;
 
-    out.uv = pos.xz;
-    out.clip_position = camera.projection * camera.view * vec4<f32>(pos.x, pos.z, pos.y, 1.0);
+    out.uv = pos.xy;
+    out.clip_position = camera.projection * camera.view * vec4<f32>(pos.x, pos.y, pos.z, 1.0);
     return out;
 }
 
