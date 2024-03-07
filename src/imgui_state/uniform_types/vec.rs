@@ -76,9 +76,9 @@ impl VecUniformValue for Vec2UniformValue {
 
     fn to_le_bytes(&self) -> Vec<u8> {
         match self {
-            Vec2UniformValue::U32(x, y) => x.to_le_bytes().into_iter().chain(y.to_le_bytes().into_iter()).collect(),
-            Vec2UniformValue::I32(x, y) => x.to_le_bytes().into_iter().chain(y.to_le_bytes().into_iter()).collect(),
-            Vec2UniformValue::F32(x, y) => x.to_le_bytes().into_iter().chain(y.to_le_bytes().into_iter()).collect(),
+            Vec2UniformValue::U32(x, y) => x.to_le_bytes().into_iter().chain(y.to_le_bytes()).collect(),
+            Vec2UniformValue::I32(x, y) => x.to_le_bytes().into_iter().chain(y.to_le_bytes()).collect(),
+            Vec2UniformValue::F32(x, y) => x.to_le_bytes().into_iter().chain(y.to_le_bytes()).collect(),
         }
     }
 
@@ -244,9 +244,9 @@ impl VecUniformValue for Vec3UniformValue {
 
     fn to_le_bytes(&self) -> Vec<u8> {
         match self {
-            Vec3UniformValue::U32(x, y, z) => x.to_le_bytes().into_iter().chain(y.to_le_bytes().into_iter().chain(z.to_le_bytes().into_iter())).collect(),
-            Vec3UniformValue::I32(x, y, z) => x.to_le_bytes().into_iter().chain(y.to_le_bytes().into_iter().chain(z.to_le_bytes().into_iter())).collect(),
-            Vec3UniformValue::F32(x, y, z) => x.to_le_bytes().into_iter().chain(y.to_le_bytes().into_iter().chain(z.to_le_bytes().into_iter())).collect(),
+            Vec3UniformValue::U32(x, y, z) => x.to_le_bytes().into_iter().chain(y.to_le_bytes()).chain(z.to_le_bytes()).collect(),
+            Vec3UniformValue::I32(x, y, z) => x.to_le_bytes().into_iter().chain(y.to_le_bytes()).chain(z.to_le_bytes()).collect(),
+            Vec3UniformValue::F32(x, y, z) => x.to_le_bytes().into_iter().chain(y.to_le_bytes()).chain(z.to_le_bytes()).collect(),
         }
     }
 
@@ -417,9 +417,9 @@ impl VecUniformValue for Vec4UniformValue {
 
     fn to_le_bytes(&self) -> Vec<u8> {
         match self {
-            Vec4UniformValue::U32(x, y, z, w) => x.to_le_bytes().into_iter().chain(y.to_le_bytes().into_iter().chain(z.to_le_bytes().into_iter()).chain(w.to_le_bytes().into_iter())).collect(),
-            Vec4UniformValue::I32(x, y, z, w) => x.to_le_bytes().into_iter().chain(y.to_le_bytes().into_iter().chain(z.to_le_bytes().into_iter()).chain(w.to_le_bytes().into_iter())).collect(),
-            Vec4UniformValue::F32(x, y, z, w) => x.to_le_bytes().into_iter().chain(y.to_le_bytes().into_iter().chain(z.to_le_bytes().into_iter()).chain(w.to_le_bytes().into_iter())).collect(),
+            Vec4UniformValue::U32(x, y, z, w) => x.to_le_bytes().into_iter().chain(y.to_le_bytes()).chain(z.to_le_bytes()).chain(w.to_le_bytes()).collect(),
+            Vec4UniformValue::I32(x, y, z, w) => x.to_le_bytes().into_iter().chain(y.to_le_bytes()).chain(z.to_le_bytes()).chain(w.to_le_bytes()).collect(),
+            Vec4UniformValue::F32(x, y, z, w) => x.to_le_bytes().into_iter().chain(y.to_le_bytes()).chain(z.to_le_bytes()).chain(w.to_le_bytes()).collect(),
         }
     }
 

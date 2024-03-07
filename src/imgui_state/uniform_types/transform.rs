@@ -73,18 +73,10 @@ impl Byteable for Vector4<f32> {
     fn to_le_bytes(&self) -> Vec<u8> {
         self.x.to_le_bytes()
             .into_iter()
-            .chain(
-                self.y.to_le_bytes()
-                .into_iter()
-                .chain(
-                    self.z.to_le_bytes()
-                    .into_iter()
-                    .chain(
-                        self.w.to_le_bytes()
-                        .into_iter()
-                    )
-                )
-            ).collect()
+            .chain(self.y.to_le_bytes())
+            .chain(self.z.to_le_bytes())
+            .chain(self.w.to_le_bytes())
+            .collect()
     }
 }
 

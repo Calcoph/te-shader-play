@@ -311,58 +311,41 @@ pub(crate) struct CameraUniform {
     inverse_projection_matrix: Matrix4<f32>,
 }
 
-type V4Iter = Chain<IntoIter<u8, 4>, Chain<IntoIter<u8, 4>, Chain<IntoIter<u8, 4>, IntoIter<u8, 4>>>>;
+type V4Iter = Chain<Chain<Chain<IntoIter<u8, 4>, IntoIter<u8, 4>>, IntoIter<u8, 4>>, IntoIter<u8, 4>>;
 fn get_vec4_bytes(vec4: Vector4<f32>) -> V4Iter {
     vec4.x.to_le_bytes()
             .into_iter()
-            .chain(
-                vec4.y.to_le_bytes()
-                .into_iter()
-                .chain(
-                    vec4.z.to_le_bytes()
-                    .into_iter()
-                    .chain(
-                        vec4.w.to_le_bytes()
-                        .into_iter()
-                    )
-                )
-            )
+            .chain(vec4.y.to_le_bytes())
+            .chain(vec4.z.to_le_bytes())
+            .chain(vec4.w.to_le_bytes())
 }
 
-type M4Iter = Chain<V4Iter, Chain<V4Iter, Chain<V4Iter, V4Iter>>>;
+type M4Iter = Chain<Chain<Chain<V4Iter, V4Iter>, V4Iter>, V4Iter>;
 fn get_matrix4_bytes(mat4: Matrix4<f32>) -> M4Iter {
     get_vec4_bytes(mat4.x)
-            .chain(
-                get_vec4_bytes(mat4.y)
-                .chain(
-                    get_vec4_bytes(mat4.z)
-                    .chain(
-                        get_vec4_bytes(mat4.w)
-                    )
-                )
-            )
+            .chain(get_vec4_bytes(mat4.y))
+            .chain(get_vec4_bytes(mat4.z))
+            .chain(get_vec4_bytes(mat4.w))
 }
 
 impl CameraUniform {
     pub(crate) fn to_le_bytes(&self) -> Vec<u8> {
         let position = self.position.x.to_le_bytes()
             .into_iter()
-            .chain(
-                self.position.y.to_le_bytes()
-                .into_iter()
-                .chain(
-                    self.position.z.to_le_bytes()
-                    .into_iter()
-                    .chain([0u8, 0u8, 0u8, 0u8]) // 4 extra bytes because alignment of vec3 = alignment of vec4 = 16 (4 extra bytes)
-                )
-            );
+            .chain(self.position.y.to_le_bytes())
+            .chain(self.position.z.to_le_bytes())
+            .chain([0u8, 0u8, 0u8, 0u8]); // 4 extra bytes because alignment of vec3 = alignment of vec4 = 16 (4 extra bytes)
 
         let projection = get_matrix4_bytes(self.projection_matrix);
         let view = get_matrix4_bytes(self.view_matrix);
         let inverse_view = get_matrix4_bytes(self.inverse_view_matrix);
         let inverse_proj = get_matrix4_bytes(self.inverse_projection_matrix);
 
-        position.chain(projection.chain(view).chain(inverse_view).chain(inverse_proj)).collect()
+        position.chain(projection)
+            .chain(view)
+            .chain(inverse_view)
+            .chain(inverse_proj)
+            .collect()
     }
 }
 

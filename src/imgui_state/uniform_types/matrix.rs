@@ -21,9 +21,10 @@ pub(crate) struct Column4(pub f32, pub f32, pub f32, pub f32);
 
 impl MatrixColumn for Column2 {
     fn to_le_bytes(&self) -> Vec<u8> {
-        self.0.to_le_bytes().into_iter().chain(
-            self.1.to_le_bytes().into_iter()
-        ).collect()
+        self.0.to_le_bytes()
+            .into_iter()
+            .chain(self.1.to_le_bytes())
+            .collect()
     }
 
     fn values(&self) -> Vec<f32> {
@@ -36,11 +37,11 @@ impl MatrixColumn for Column2 {
 
 impl MatrixColumn for Column3 {
     fn to_le_bytes(&self) -> Vec<u8> {
-        self.0.to_le_bytes().into_iter().chain(
-            self.1.to_le_bytes().into_iter().chain(
-                self.2.to_le_bytes().into_iter()
-            )
-        ).collect()
+        self.0.to_le_bytes()
+            .into_iter()
+            .chain(self.1.to_le_bytes())
+            .chain(self.2.to_le_bytes())
+            .collect()
     }
 
     fn values(&self) -> Vec<f32> {
@@ -54,13 +55,12 @@ impl MatrixColumn for Column3 {
 
 impl MatrixColumn for Column4 {
     fn to_le_bytes(&self) -> Vec<u8> {
-        self.0.to_le_bytes().into_iter().chain(
-            self.1.to_le_bytes().into_iter().chain(
-                self.2.to_le_bytes().into_iter().chain(
-                    self.3.to_le_bytes().into_iter()
-                )
-            )
-        ).collect()
+        self.0.to_le_bytes()
+            .into_iter()
+            .chain(self.1.to_le_bytes())
+            .chain(self.2.to_le_bytes())
+            .chain(self.3.to_le_bytes())
+            .collect()
     }
 
     fn values(&self) -> Vec<f32> {
