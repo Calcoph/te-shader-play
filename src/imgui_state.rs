@@ -24,8 +24,8 @@ use self::uniform_types::{BuiltinValue, MatrixType, ScalarType, ScalarUniformVal
 
 mod uniform_types;
 
-const IMAGE_HEIGHT: f32 = 512.0;
-const IMAGE_WIDTH: f32 = 512.0;
+pub const IMAGE_HEIGHT: f32 = 512.0;
+pub const IMAGE_WIDTH: f32 = 512.0;
 
 const DEFAULT_U32_UNIFORM: u32 = 0;
 const DEFAULT_UNIFORM: UniformValue = UniformValue::Scalar(ScalarUniformValue::F32(0.0));
@@ -612,6 +612,7 @@ pub struct UiState {
     pub show_mesh: bool,
     always_on_top: bool,
     pub background_color: [f32; 4],
+    pub draw_grid: bool,
 }
 
 impl UiState {
@@ -628,6 +629,7 @@ impl UiState {
             show_mesh: false,
             always_on_top: false,
             background_color: [1.0, 0.5, 0.5, 1.0],
+            draw_grid: true,
         }
     }
 
@@ -725,6 +727,7 @@ impl UiState {
             if ui.checkbox("Show mesh", &mut self.show_mesh) {
                 message = Some(Message::ReloadPipeline)
             };
+            ui.checkbox("Show grid", &mut self.draw_grid);
             ui.separator();
 
             if ui.radio_button("2D whole screen", &mut self.mesh_type, MeshType::Screen2D) {

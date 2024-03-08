@@ -1,9 +1,7 @@
 use std::error::Error;
 
 use wgpu::{
-    core::command::{RenderPassError, RenderPassErrorInner},
-    CommandEncoder, CommandEncoderDescriptor, IndexFormat, LoadOp, Operations,
-    RenderPassColorAttachment, RenderPassDescriptor, StoreOp, SurfaceTexture, TextureView,
+    core::command::{RenderPassError, RenderPassErrorInner}, CommandEncoder, CommandEncoderDescriptor, IndexFormat, LoadOp, Operations, RenderPassColorAttachment, RenderPassDepthStencilAttachment, RenderPassDescriptor, StoreOp, SurfaceTexture, TextureView, TextureViewDescriptor
 };
 use winit::window::{Window, WindowLevel};
 
@@ -21,10 +19,10 @@ pub fn render(output: SurfaceTexture, state: &mut State, window: &Window) {
                 if let Some(err) = source {
                     state.handle_render_pass_err(err)
                 } else {
-                    None
+                    panic!("Error")
                 }
             } else {
-                None
+                panic!("Error")
             }
         } else {
             None
@@ -35,22 +33,29 @@ pub fn render(output: SurfaceTexture, state: &mut State, window: &Window) {
         .texture
         .create_view(&wgpu::TextureViewDescriptor::default())
         .unwrap();
-    let mut encoder = state
+    let mut encoder1 = state
         .gpu
         .device
         .create_command_encoder(&CommandEncoderDescriptor { label: None })
         .unwrap();
-    let res = draw_image(state, &mut encoder, &view);
+    let depth_view = state.depth_textures.background.create_view(&TextureViewDescriptor::default()).unwrap();
+    let res = draw_image(state, &mut encoder1, &view, &depth_view);
     let message = handle_render_pass_err(state, res);
     handle_message(state, message, window);
     let (imgui_encoder, message) = state.im_state.render(window, &state.gpu, &view);
     handle_message(state, message, window);
     let view = state.im_state.get_texture_view();
-    let res = draw_image(state, &mut encoder, view);
+    let depth_view = state.depth_textures.imgui.create_view(&TextureViewDescriptor::default()).unwrap();
+    let mut encoder2 = state
+        .gpu
+        .device
+        .create_command_encoder(&CommandEncoderDescriptor { label: None })
+        .unwrap();
+    let res = draw_image(state, &mut encoder2, view, &depth_view);
     let message = handle_render_pass_err(state, res);
     handle_message(state, message, window);
     state.gpu.queue.submit(
-        vec![encoder.finish(), imgui_encoder.finish()]
+        vec![encoder1.finish(), encoder2.finish(), imgui_encoder.finish()]
             .into_iter()
             .filter_map(|encoder| encoder.ok()),
     );
@@ -73,7 +78,21 @@ fn draw_image(
     state: &State,
     encoder: &mut CommandEncoder,
     view: &TextureView,
+    depth_view: &TextureView,
 ) -> Result<(), RenderPassError> {
+    if state.im_state.ui.draw_grid {
+        draw_grid(state, encoder, view, &depth_view)?;
+    }
+    draw_custom_shader(state, encoder, view, &depth_view)
+}
+
+fn draw_grid(
+    state: &State,
+    encoder: &mut CommandEncoder,
+    view: &TextureView,
+    depth_view: &TextureView,
+) -> Result<(), RenderPassError> {
+    assert!(state.im_state.ui.draw_grid);
     let background_color = state.get_background_color();
     let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
         label: None,
@@ -85,17 +104,83 @@ fn draw_image(
                 store: StoreOp::Store,
             },
         })],
-        depth_stencil_attachment: None,
+        depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
+            view: depth_view,
+            depth_ops: Some(Operations {
+                load: LoadOp::Clear(1.0),
+                store: StoreOp::Store
+            }),
+            stencil_ops: None,
+        }),
         timestamp_writes: None,
         occlusion_query_set: None,
     });
-    render_pass.set_pipeline(&state.pipeline);
+    render_pass.set_pipeline(&state.pipelines.grid);
     for (g_index, group) in state.im_state.ui.inputs.groups.iter().enumerate() {
         render_pass.set_bind_group(g_index as u32, &group.bind_group, &[]);
     }
 
-    render_pass.set_vertex_buffer(0, state.vertices.vertex_buffer.slice(..));
-    render_pass.set_index_buffer(state.vertices.index_buffer.slice(..), IndexFormat::Uint32);
-    render_pass.draw_indexed(0..state.vertices.indices.len() as u32, 0, 0..1);
+    render_pass.set_vertex_buffer(0, state.vertices.grid.vertex_buffer.slice(..));
+    render_pass.set_index_buffer(state.vertices.grid.index_buffer.slice(..), IndexFormat::Uint32);
+    render_pass.draw_indexed(0..state.vertices.grid.indices.len() as u32, 0, 0..1);
+    render_pass.encode()
+}
+
+fn draw_custom_shader(
+    state: &State,
+    encoder: &mut CommandEncoder,
+    view: &TextureView,
+    depth_view: &TextureView,
+) -> Result<(), RenderPassError> {
+    let (ops, depth_stencil_attachment) = if state.im_state.ui.draw_grid {
+        let ops = Operations {
+            load: LoadOp::Load,
+            store: StoreOp::Store,
+        };
+        let depth_stencil_attachment = Some(RenderPassDepthStencilAttachment {
+            view: depth_view,
+            depth_ops: Some(Operations {
+                load: LoadOp::Load,
+                store: StoreOp::Store,
+            }),
+            stencil_ops: None,
+        });
+        (ops, depth_stencil_attachment)
+    } else {
+        let background_color = state.get_background_color();
+        let ops = Operations {
+            load: LoadOp::Clear(background_color),
+            store: StoreOp::Store,
+        };
+        let depth_stencil_attachment = Some(RenderPassDepthStencilAttachment {
+            view: depth_view,
+            depth_ops: Some(Operations {
+                load: LoadOp::Clear(1.0),
+                store: StoreOp::Store,
+            }),
+            stencil_ops: None,
+        });
+        (ops, depth_stencil_attachment)
+    };
+
+    let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
+        label: None,
+        color_attachments: &[Some(RenderPassColorAttachment {
+            view,
+            resolve_target: None,
+            ops,
+        })],
+        depth_stencil_attachment,
+        timestamp_writes: None,
+        occlusion_query_set: None,
+    });
+    render_pass.set_pipeline(&state.pipelines.custom_shader);
+    for (g_index, group) in state.im_state.ui.inputs.groups.iter().enumerate() {
+        render_pass.set_bind_group(g_index as u32, &group.bind_group, &[]);
+    }
+
+    render_pass.set_vertex_buffer(0, state.vertices.custom_shader.vertex_buffer.slice(..));
+    render_pass.set_index_buffer(state.vertices.custom_shader.index_buffer.slice(..), IndexFormat::Uint32);
+    render_pass.draw_indexed(0..state.vertices.custom_shader.indices.len() as u32, 0, 0..1);
     render_pass.encode()
 }

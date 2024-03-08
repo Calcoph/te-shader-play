@@ -1,5 +1,6 @@
 use std::{
     borrow::Cow,
+    fs,
     path::Path,
     time::{Duration, Instant},
 };
@@ -7,23 +8,21 @@ use std::{
 use cgmath::num_traits::ToBytes;
 use wgpu::{
     core::{
-        binding_model::LateMinBufferBindingSizeMismatch,
-        command::{DrawError, RenderPassErrorInner},
-        pipeline::{CreateRenderPipelineError, CreateShaderModuleError},
-        validation::{BindingError, StageError},
+        binding_model::LateMinBufferBindingSizeMismatch, command::{DrawError, RenderPassErrorInner}, device, pipeline::{CreateRenderPipelineError, CreateShaderModuleError}, validation::{BindingError, StageError}
     },
     util::{BufferInitDescriptor, DeviceExt},
-    BlendState, Buffer, BufferUsages, Color, ColorTargetState, ColorWrites, Device, FragmentState,
-    FrontFace, MultisampleState, PipelineLayout, PipelineLayoutDescriptor, PolygonMode,
-    PrimitiveState, PrimitiveTopology, Queue, RenderPipeline, RenderPipelineDescriptor,
-    ShaderModule, ShaderModuleDescriptor, ShaderSource, ShaderStages, Surface,
-    SurfaceConfiguration, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState,
-    VertexStepMode,
+    BlendState, Buffer, BufferUsages, Color, ColorTargetState, ColorWrites, CompareFunction,
+    DepthBiasState, DepthStencilState, Device, Extent3d, FragmentState, FrontFace,
+    MultisampleState, PipelineLayout, PipelineLayoutDescriptor, PolygonMode, PrimitiveState,
+    PrimitiveTopology, Queue, RenderPipeline, RenderPipelineDescriptor, ShaderModule,
+    ShaderModuleDescriptor, ShaderSource, ShaderStages,
+    StencilState, Surface, SurfaceConfiguration, Texture, TextureDescriptor, TextureFormat,
+    TextureUsages, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
 };
 use winit::window::Window;
 
 use crate::{
-    imgui_state::{ImState, MeshConfig, Message, Uniforms},
+    imgui_state::{ImState, MeshConfig, Message, Uniforms, IMAGE_HEIGHT, IMAGE_WIDTH},
     rendering::RenderMessage,
 };
 
@@ -88,6 +87,7 @@ struct Shader {
     shader: ShaderModule,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct Vertex {
     x: f32,
     y: f32,
@@ -104,14 +104,19 @@ impl Vertex {
     }
 }
 
-pub struct Vertices {
+pub struct VerticesSet {
     pub vertex_buffer: Buffer,
     pub vertices: Vec<Vertex>,
     pub index_buffer: Buffer,
     pub indices: Vec<u32>,
 }
 
-impl Vertices {
+pub struct Vertices {
+    pub custom_shader: VerticesSet,
+    pub grid: VerticesSet,
+}
+
+impl VerticesSet {
     fn default_vertices() -> (Vec<Vertex>, Vec<u32>) {
         Self::screen_2d_vertices()
     }
@@ -233,14 +238,68 @@ impl Vertices {
     }
 }
 
+pub struct Pipelines {
+    pub custom_shader: RenderPipeline,
+    pub grid: RenderPipeline,
+}
+
+pub struct DepthTextures {
+    pub imgui: Texture,
+    pub background: Texture
+}
+impl DepthTextures {
+    fn new(device: &Device, width: u32, height: u32) -> DepthTextures {
+        let depth_texture = device
+            .create_texture(&TextureDescriptor {
+                label: Some("Depth view"),
+                size: Extent3d {
+                    width: width,
+                    height: height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: TextureFormat::Depth32Float,
+                usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
+                view_formats: &[TextureFormat::Depth32Float],
+            })
+            .unwrap();
+
+        let imgui_depth_texture = device
+            .create_texture(&TextureDescriptor {
+                label: Some("Depth view"),
+                size: Extent3d {
+                    width: IMAGE_WIDTH as u32,
+                    height: IMAGE_HEIGHT as u32,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: TextureFormat::Depth32Float,
+                usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
+                view_formats: &[TextureFormat::Depth32Float],
+            })
+            .unwrap();
+
+        DepthTextures {
+            imgui: imgui_depth_texture,
+            background: depth_texture,
+        }
+    }
+}
+
 pub struct State<'surface> {
     pub gpu: Gpu<'surface>,
-    pub pipeline: RenderPipeline,
+    pub pipelines: Pipelines,
     pub time: TimeKeeper,
     pub im_state: ImState,
     current_shader_path: String,
     current_shader: Shader,
+    grid_shader: Shader,
     pub vertices: Vertices,
+    pub depth_textures: DepthTextures,
 }
 
 impl<'surface> State<'surface> {
@@ -287,6 +346,25 @@ fn fs_main() -> @location(0) vec4<f32> {
                     })
                     .unwrap(),
             );
+        let grid_shader_src = fs::read_to_string("shaders/grid.wgsl").unwrap();
+        let grid_shader = gpu
+            .device
+            .create_shader_module(ShaderModuleDescriptor {
+                label: None,
+                source: ShaderSource::Wgsl(grid_shader_src.clone().into()),
+            })
+            .unwrap_or(
+                gpu.device
+                    .create_shader_module(ShaderModuleDescriptor {
+                        label: None,
+                        source: ShaderSource::Wgsl((&grid_shader_src).into()),
+                    })
+                    .unwrap(),
+            );
+        let grid_shader = Shader {
+            contents: grid_shader_src,
+            shader: grid_shader,
+        };
 
         let time = TimeKeeper::new();
         let layout = gpu
@@ -314,64 +392,166 @@ fn fs_main() -> @location(0) vec4<f32> {
                 multiview: None,
             })
             .unwrap();
+        let grid_pipeline = gpu
+            .device
+            .create_render_pipeline(&RenderPipelineDescriptor {
+                label: Some("dummy pipeline"),
+                layout: Some(&layout),
+                vertex: VertexState {
+                    module: &dummy_shader,
+                    entry_point: "vs_main",
+                    buffers: &[],
+                },
+                primitive: PrimitiveState::default(),
+                depth_stencil: None,
+                multisample: MultisampleState::default(),
+                fragment: None,
+                multiview: None,
+            })
+            .unwrap();
 
         let im_state = ImState::new(window, &gpu);
         let current_shader = Shader {
             contents: current_shader,
             shader,
         };
-        let (vertices, indices) = Vertices::default_vertices();
+        let (vertices, indices) = VerticesSet::default_vertices();
+        let size = window.inner_size();
         let mut state = State {
             time,
-            pipeline,
+            pipelines: Pipelines {
+                custom_shader: pipeline,
+                grid: grid_pipeline,
+            },
             im_state,
             current_shader_path: "shader.wgsl".into(),
             current_shader,
+            grid_shader,
             vertices: Vertices {
-                vertex_buffer: gpu
-                    .device
-                    .create_buffer_init(&BufferInitDescriptor {
-                        label: Some("Vertex buffer"),
-                        contents: &vertices
-                            .iter()
-                            .flat_map(|vert| vert.to_le_bytes())
-                            .collect::<Vec<_>>(),
-                        usage: BufferUsages::VERTEX,
-                    })
-                    .unwrap(),
-                vertices,
-                index_buffer: gpu
-                    .device
-                    .create_buffer_init(&BufferInitDescriptor {
-                        label: Some("Index buffer"),
-                        contents: &indices
-                            .iter()
-                            .flat_map(|ind| (*ind).to_le_bytes())
-                            .collect::<Vec<_>>(),
-                        usage: BufferUsages::INDEX,
-                    })
-                    .unwrap(),
-                indices,
+                custom_shader: VerticesSet {
+                    vertex_buffer: gpu
+                        .device
+                        .create_buffer_init(&BufferInitDescriptor {
+                            label: Some("Vertex buffer"),
+                            contents: &vertices
+                                .iter()
+                                .flat_map(|vert| vert.to_le_bytes())
+                                .collect::<Vec<_>>(),
+                            usage: BufferUsages::VERTEX,
+                        })
+                        .unwrap(),
+                    vertices: vertices.clone(),
+                    index_buffer: gpu
+                        .device
+                        .create_buffer_init(&BufferInitDescriptor {
+                            label: Some("Index buffer"),
+                            contents: &indices
+                                .iter()
+                                .flat_map(|ind| (*ind).to_le_bytes())
+                                .collect::<Vec<_>>(),
+                            usage: BufferUsages::INDEX,
+                        })
+                        .unwrap(),
+                    indices: indices.clone(),
+                },
+                grid: VerticesSet {
+                    vertex_buffer: gpu
+                        .device
+                        .create_buffer_init(&BufferInitDescriptor {
+                            label: Some("Vertex buffer"),
+                            contents: &vertices
+                                .iter()
+                                .flat_map(|vert| vert.to_le_bytes())
+                                .collect::<Vec<_>>(),
+                            usage: BufferUsages::VERTEX,
+                        })
+                        .unwrap(),
+                    vertices,
+                    index_buffer: gpu
+                        .device
+                        .create_buffer_init(&BufferInitDescriptor {
+                            label: Some("Index buffer"),
+                            contents: &indices
+                                .iter()
+                                .flat_map(|ind| (*ind).to_le_bytes())
+                                .collect::<Vec<_>>(),
+                            usage: BufferUsages::INDEX,
+                        })
+                        .unwrap(),
+                    indices,
+                },
             },
+            depth_textures: DepthTextures::new(&gpu.device, size.width, size.height),
             gpu,
         };
-        state.refresh_pipeline();
+        state.refresh_pipelines();
 
         state
     }
 
-    fn refresh_pipeline(&mut self) {
-        let pipeline = self.recreate_pipeline();
-        self.pipeline = pipeline;
+    fn refresh_pipelines(&mut self) {
+        let pipelines = self.recreate_pipelines();
+        self.pipelines = pipelines;
     }
 
-    fn recreate_pipeline(&mut self) -> RenderPipeline {
+    fn recreate_pipelines(&mut self) -> Pipelines {
         let layout = self.get_pipeline_layout();
         let poly_mode = if self.im_state.ui.show_mesh {
             PolygonMode::Line
         } else {
             PolygonMode::Fill
         };
+        let grid_pipeline = self
+            .gpu
+            .device
+            .create_render_pipeline(&RenderPipelineDescriptor {
+                label: None,
+                layout: Some(&layout),
+                vertex: VertexState {
+                    module: &self.grid_shader.shader,
+                    entry_point: "vs_main",
+                    buffers: &[VertexBufferLayout {
+                        array_stride: std::mem::size_of::<f32>() as u64 * 3,
+                        step_mode: VertexStepMode::Vertex,
+                        attributes: &[VertexAttribute {
+                            format: VertexFormat::Float32x3,
+                            offset: 0,
+                            shader_location: 0,
+                        }],
+                    }],
+                },
+                primitive: PrimitiveState {
+                    topology: PrimitiveTopology::TriangleList,
+                    strip_index_format: None,
+                    front_face: FrontFace::Ccw,
+                    cull_mode: None,
+                    unclipped_depth: false,
+                    polygon_mode: poly_mode,
+                    conservative: false,
+                },
+                depth_stencil: Some(DepthStencilState {
+                    format: TextureFormat::Depth32Float,
+                    depth_write_enabled: true,
+                    depth_compare: CompareFunction::Less,
+                    stencil: StencilState::default(),
+                    bias: DepthBiasState::default(),
+                }),
+                multisample: MultisampleState {
+                    count: 1,
+                    mask: !0,
+                    alpha_to_coverage_enabled: false,
+                },
+                fragment: Some(FragmentState {
+                    module: &self.grid_shader.shader,
+                    entry_point: "fs_main",
+                    targets: &[Some(ColorTargetState {
+                        format: self.gpu.config.format,
+                        blend: Some(BlendState::ALPHA_BLENDING),
+                        write_mask: ColorWrites::ALL,
+                    })],
+                }),
+                multiview: None,
+            });
         match self
             .gpu
             .device
@@ -400,7 +580,13 @@ fn fs_main() -> @location(0) vec4<f32> {
                     polygon_mode: poly_mode,
                     conservative: false,
                 },
-                depth_stencil: None,
+                depth_stencil: Some(DepthStencilState {
+                    format: TextureFormat::Depth32Float,
+                    depth_write_enabled: true,
+                    depth_compare: CompareFunction::Always,
+                    stencil: StencilState::default(),
+                    bias: DepthBiasState::default(),
+                }),
                 multisample: MultisampleState {
                     count: 1,
                     mask: !0,
@@ -417,12 +603,15 @@ fn fs_main() -> @location(0) vec4<f32> {
                 }),
                 multiview: None,
             }) {
-            Ok(pipeline) => pipeline,
-            Err(err) => self.handle_pipeline_err(err),
+            Ok(pipeline) => Pipelines {
+                custom_shader: pipeline,
+                grid: grid_pipeline.unwrap(),
+            },
+            Err(err) => {std::mem::drop(grid_pipeline);self.handle_pipeline_err(err)},
         }
     }
 
-    fn handle_pipeline_err(&mut self, err: CreateRenderPipelineError) -> RenderPipeline {
+    fn handle_pipeline_err(&mut self, err: CreateRenderPipelineError) -> Pipelines {
         match err {
             CreateRenderPipelineError::Stage { stage, error } => {
                 if let ShaderStages::FRAGMENT = stage {
@@ -483,7 +672,7 @@ fn fs_main() -> @location(0) vec4<f32> {
             _ => todo!(),
         }
 
-        self.recreate_pipeline()
+        self.recreate_pipelines()
     }
 
     pub fn refresh_shader(&mut self) {
@@ -501,7 +690,7 @@ fn fs_main() -> @location(0) vec4<f32> {
                     self.im_state.destroy_errors();
                     self.current_shader.contents = shader_contents;
                     self.current_shader.shader = shader;
-                    self.refresh_pipeline()
+                    self.refresh_pipelines()
                 }
                 Err(err) => self.handle_shader_err(err),
             };
@@ -510,7 +699,8 @@ fn fs_main() -> @location(0) vec4<f32> {
 
     pub(crate) fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>) {
         if size.height > 1 && size.width > 1 {
-            self.gpu.resize(size)
+            self.gpu.resize(size);
+            self.refresh_depth_texture(size)
         }
     }
 
@@ -522,7 +712,7 @@ fn fs_main() -> @location(0) vec4<f32> {
                 self.current_shader_path = shader;
                 self.refresh_shader();
             }
-            Message::ReloadPipeline => self.refresh_pipeline(),
+            Message::ReloadPipeline => self.refresh_pipelines(),
             Message::ReloadMeshBuffers => {
                 self.auto_enable_camera();
                 self.reload_mesh_buffers()
@@ -572,9 +762,6 @@ fn fs_main() -> @location(0) vec4<f32> {
                     shader_size,
                     ..
                 }) => {
-                    dbg!(group_index);
-                    dbg!(compact_index);
-                    dbg!(shader_size);
                     self.im_state.ui.inputs.change_binding_size(
                         *group_index as usize,
                         *compact_index,
@@ -586,18 +773,23 @@ fn fs_main() -> @location(0) vec4<f32> {
                 }
                 _ => todo!(),
             },
-            _ => None,
+            e => panic!("{:?}", e),
         }
     }
 
     fn reload_mesh_buffers(&mut self) {
         self.vertices
+            .custom_shader
             .switch(&self.im_state.ui.mesh_config, &self.gpu.device)
     }
 
     fn auto_enable_camera(&mut self) {
         match self.im_state.ui.mesh_config {
-            MeshConfig::Screen2D => self.im_state.ui.inputs.enable_camera(false, &self.gpu.queue),
+            MeshConfig::Screen2D => self
+                .im_state
+                .ui
+                .inputs
+                .enable_camera(false, &self.gpu.queue),
             _ => self.im_state.ui.inputs.enable_camera(true, &self.gpu.queue),
         };
     }
@@ -610,5 +802,25 @@ fn fs_main() -> @location(0) vec4<f32> {
             b: color[2] as f64,
             a: color[3] as f64,
         }
+    }
+
+    fn refresh_depth_texture(&mut self, size: winit::dpi::PhysicalSize<u32>) {
+        self.depth_textures.background = self.gpu
+            .device
+            .create_texture(&TextureDescriptor {
+                label: Some("Depth view"),
+                size: Extent3d {
+                    width: size.width,
+                    height: size.height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: TextureFormat::Depth32Float,
+                usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
+                view_formats: &[TextureFormat::Depth32Float],
+            })
+            .unwrap();
     }
 }

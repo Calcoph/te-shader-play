@@ -17,6 +17,7 @@ mod rendering;
 mod state;
 
 fn main() {
+    env_logger::init();
     let event_loop = EventLoopBuilder::default()
         .build()
         .expect("Couldn't create event loop");
