@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 
 use imgui::Ui;
+use serde_json::{Map, Value as JsonValue};
 
 use crate::imgui_state::{ImguiScalar, ImguiUniformSelectable, UniformEditEvent};
 
@@ -262,6 +263,34 @@ impl ScalarUniformValue {
 
     fn cast_to_transform(&self) -> TransformUniformValue {
         TransformUniformValue::default()
+    }
+
+    pub(crate) fn from_json(uniform: &Map<String, JsonValue>) -> Option<ScalarUniformValue> {
+        let value = uniform.get("value")?;
+        let inner_type = uniform.get("innertype")?.as_str()?;
+        match inner_type {
+            "f32" => {
+                let val = value.as_f64()? as f32;
+                Some(ScalarUniformValue::F32(val))
+            },
+            "u32" => {
+                let val = value.as_u64()? as u32;
+                Some(ScalarUniformValue::U32(val))
+            },
+            "i32" => {
+                let val = value.as_i64()? as i32;
+                Some(ScalarUniformValue::I32(val))
+            },
+            _ => None
+        }
+    }
+
+    pub(crate) fn to_json(&self, json_obj: &mut Map<String, JsonValue>) {
+        match self {
+            ScalarUniformValue::U32(_) => json_obj.insert("innertype".into(), "u32".into()),
+            ScalarUniformValue::I32(_) => json_obj.insert("innertype".into(), "i32".into()),
+            ScalarUniformValue::F32(_) => json_obj.insert("innertype".into(), "f32".into()),
+        };
     }
 }
 

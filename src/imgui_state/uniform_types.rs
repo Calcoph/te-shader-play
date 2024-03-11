@@ -2,6 +2,7 @@ use std::borrow::Cow;
 
 use cgmath::{Deg, InnerSpace, Matrix4, Point3, Rad, SquareMatrix, Transform, Vector3};
 use imgui::Ui;
+use serde_json::{Map, Value as JsonValue};
 
 use crate::imgui_state::UniformEditEvent;
 
@@ -111,6 +112,60 @@ impl BuiltinValue {
                 }
             }
             _ => unreachable!(),
+        }
+    }
+
+    fn from_json(uniform: &Map<String, JsonValue>) -> Option<BuiltinValue> {
+        let inner_type = uniform.get("innertype")?;
+        if let None = inner_type.as_str() {
+            println!("Couldn't load saved data because innertype of builtin isn't a string");
+        }
+        match inner_type.as_str()? {
+            "time" => Some(BuiltinValue::Time),
+            "camera" => {
+                let json_position = uniform.get("position")?.as_array()?;
+                let yaw = uniform.get("yaw")?;
+                let pitch = uniform.get("pitch")?;
+                let enabled = uniform.get("enabled")?;
+
+                if json_position.len() != 3 {
+                    return None
+                }
+
+                let position = Point3 {
+                    x: json_position.get(0)?.as_f64()? as f32,
+                    y: json_position.get(1)?.as_f64()? as f32,
+                    z: json_position.get(2)?.as_f64()? as f32,
+                };
+
+                let yaw = yaw.as_f64()? as f32;
+                let pitch = pitch.as_f64()? as f32;
+                let enabled = enabled.as_bool()?;
+
+                Some(BuiltinValue::Camera { position, yaw, pitch, enabled })
+            },
+            _ => {
+                println!("Couldn't load saved data because of invalid innertype of builtin");
+                None
+            }
+        }
+    }
+
+    fn to_json(&self, json_obj: &mut serde_json::Map<String, serde_json::Value>) {
+        match self {
+            BuiltinValue::Time => json_obj.insert("innertype".into(), "time".into()),
+            BuiltinValue::Camera { .. } => json_obj.insert("innertype".into(), "camera".into()),
+        };
+
+        match self {
+            BuiltinValue::Time => (),
+            BuiltinValue::Camera { position, yaw, pitch, enabled } => {
+                let position: Vec<serde_json::Value> = vec![position.x.into(), position.y.into(), position.z.into()];
+                json_obj.insert("position".into(), position.into());
+                json_obj.insert("yaw".into(), serde_json::Value::from(*yaw));
+                json_obj.insert("pitch".into(), serde_json::Value::from(*pitch));
+                json_obj.insert("enabled".into(), serde_json::Value::from(*enabled));
+            },
         }
     }
 }
@@ -394,6 +449,43 @@ impl UniformValue {
                 ))
             }
         };
+    }
+
+    pub(crate) fn from_json(uniform: &Map<String, JsonValue>) -> Option<UniformValue> {
+        let outer_type = uniform.get("outer_type")?;
+        match outer_type.as_str()? {
+            "builtin" => Some(UniformValue::BuiltIn(BuiltinValue::from_json(uniform)?)),
+            "matrix" => Some(UniformValue::Matrix(MatrixUniformValue::from_json(uniform)?)),
+            "scalar" => Some(UniformValue::Scalar(ScalarUniformValue::from_json(uniform)?)),
+            "transform" => Some(UniformValue::Transform(TransformUniformValue::from_json(uniform)?)),
+            "vector" => Some(UniformValue::Vector(VectorUniformValue::from_json(uniform)?)),
+            _ => {
+                println!("Couldn't load saved data because outer_type is not valid");
+                None
+            }
+        }
+    }
+
+    pub(crate) fn to_json(&self) -> JsonValue {
+        let mut json_o= Map::new();
+        let json_obj = &mut json_o;
+        match self {
+            UniformValue::BuiltIn(_) => json_obj.insert("outer_type".into(), "builtin".into()),
+            UniformValue::Scalar(_) => json_obj.insert("outer_type".into(), "scalar".into()),
+            UniformValue::Vector(_) => json_obj.insert("outer_type".into(), "vector".into()),
+            UniformValue::Matrix(_) => json_obj.insert("outer_type".into(), "matrix".into()),
+            UniformValue::Transform(_) => json_obj.insert("outer_type".into(), "transform".into()),
+        };
+
+        match self {
+            UniformValue::BuiltIn(b) => b.to_json(json_obj),
+            UniformValue::Scalar(s) => s.to_json(json_obj),
+            UniformValue::Vector(v) => v.to_json(json_obj),
+            UniformValue::Matrix(m) => m.to_json(json_obj),
+            UniformValue::Transform(t) => t.to_json(json_obj),
+        };
+
+        JsonValue::Object(json_o)
     }
 }
 

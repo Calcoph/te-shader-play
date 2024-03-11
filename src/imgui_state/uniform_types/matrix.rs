@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 
 use imgui::Ui;
+use serde_json::{Map, Value as JsonValue};
 
 use crate::imgui_state::{
     uniform_types::ExtendedUi, ImguiMatrix, ImguiUniformSelectable, UniformEditEvent,
@@ -16,6 +17,8 @@ use super::{
 trait MatrixColumn {
     fn to_le_bytes(&self) -> Vec<u8>;
     fn values(&self) -> Vec<f32>;
+    fn from_json(json_val: &Vec<JsonValue>) -> Option<Self> where Self: Sized;
+    fn to_json(&self) -> JsonValue;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -37,6 +40,20 @@ impl MatrixColumn for Column2 {
     fn values(&self) -> Vec<f32> {
         vec![self.0, self.1]
     }
+
+    fn from_json(json_val: &Vec<JsonValue>) -> Option<Self> {
+        if json_val.len() != 2 {
+            return None;
+        }
+
+        let r0 = json_val.get(0)?.as_f64()? as f32;
+        let r1 = json_val.get(1)?.as_f64()? as f32;
+        Some(Column2(r0, r1))
+    }
+
+    fn to_json(&self) -> JsonValue {
+        vec![self.0, self.1].into()
+    }
 }
 
 impl MatrixColumn for Column3 {
@@ -51,6 +68,21 @@ impl MatrixColumn for Column3 {
 
     fn values(&self) -> Vec<f32> {
         vec![self.0, self.1, self.2]
+    }
+
+    fn from_json(json_val: &Vec<JsonValue>) -> Option<Self> {
+        if json_val.len() != 3 {
+            return None;
+        }
+
+        let r0 = json_val.get(0)?.as_f64()? as f32;
+        let r1 = json_val.get(1)?.as_f64()? as f32;
+        let r2 = json_val.get(2)?.as_f64()? as f32;
+        Some(Column3(r0, r1, r2))
+    }
+
+    fn to_json(&self) -> JsonValue {
+        vec![self.0, self.1, self.2].into()
     }
 }
 
@@ -67,6 +99,22 @@ impl MatrixColumn for Column4 {
 
     fn values(&self) -> Vec<f32> {
         vec![self.0, self.1, self.2, self.3]
+    }
+
+    fn from_json(json_val: &Vec<JsonValue>) -> Option<Self> {
+        if json_val.len() != 4 {
+            return None;
+        }
+
+        let r0 = json_val.get(0)?.as_f64()? as f32;
+        let r1 = json_val.get(1)?.as_f64()? as f32;
+        let r2 = json_val.get(2)?.as_f64()? as f32;
+        let r3 = json_val.get(3)?.as_f64()? as f32;
+        Some(Column4(r0, r1, r2, r3))
+    }
+
+    fn to_json(&self) -> JsonValue {
+        vec![self.0, self.1, self.2, self.3].into()
     }
 }
 
@@ -204,6 +252,80 @@ impl MatrixUniformValue {
 
     fn cast_to_transform(&self) -> UniformValue {
         UniformValue::Transform(TransformUniformValue::default())
+    }
+
+    pub(crate) fn from_json(uniform: &Map<String, JsonValue>) -> Option<MatrixUniformValue> {
+        let columns = uniform.get("columns")?
+            .as_array()?;
+
+        let c1 = columns.get(0)?.as_array()?;
+        let c2 = columns.get(1)?.as_array()?;
+        let c3 = columns.get(2);
+        let c4 = columns.get(3);
+        let inner_type = uniform.get("innertype")?.as_str()?;
+        match inner_type {
+            "m2x2" => Some(MatrixUniformValue::M2x2(Column2::from_json(c1)?, Column2::from_json(c2)?)),
+            "m2x3" => Some(MatrixUniformValue::M2x3(Column3::from_json(c1)?, Column3::from_json(c2)?)),
+            "m2x4" => Some(MatrixUniformValue::M2x4(Column4::from_json(c1)?, Column4::from_json(c2)?)),
+
+            "m3x2" => {
+                let c3 = c3?.as_array()?;
+                Some(MatrixUniformValue::M3x2(Column2::from_json(c1)?, Column2::from_json(c2)?, Column2::from_json(c3)?))
+            },
+            "m3x3" => {
+                let c3 = c3?.as_array()?;
+                Some(MatrixUniformValue::M3x3(Column3::from_json(c1)?, Column3::from_json(c2)?, Column3::from_json(c3)?))
+            },
+            "m3x4" => {
+                let c3 = c3?.as_array()?;
+                Some(MatrixUniformValue::M3x4(Column4::from_json(c1)?, Column4::from_json(c2)?, Column4::from_json(c3)?))
+            },
+
+            "m4x2" => {
+                let c3 = c3?.as_array()?;
+                let c4 = c4?.as_array()?;
+                Some(MatrixUniformValue::M4x2(Column2::from_json(c1)?, Column2::from_json(c2)?, Column2::from_json(c3)?, Column2::from_json(c4)?))
+            },
+            "m4x3" => {
+                let c3 = c3?.as_array()?;
+                let c4 = c4?.as_array()?;
+                Some(MatrixUniformValue::M4x3(Column3::from_json(c1)?, Column3::from_json(c2)?, Column3::from_json(c3)?, Column3::from_json(c4)?))
+            },
+            "m4x4" => {
+                let c3 = c3?.as_array()?;
+                let c4 = c4?.as_array()?;
+                Some(MatrixUniformValue::M4x4(Column4::from_json(c1)?, Column4::from_json(c2)?, Column4::from_json(c3)?, Column4::from_json(c4)?))
+            },
+            _ => None
+        }
+    }
+
+    pub(crate) fn to_json(&self, json_obj: &mut Map<String, JsonValue>) {
+        match self {
+            MatrixUniformValue::M2x2(_, _) => json_obj.insert("innertype".into(), "mat2x2".into()),
+            MatrixUniformValue::M2x3(_, _) => json_obj.insert("innertype".into(), "mat2x3".into()),
+            MatrixUniformValue::M2x4(_, _) => json_obj.insert("innertype".into(), "mat2x4".into()),
+            MatrixUniformValue::M3x2(_, _, _) => json_obj.insert("innertype".into(), "mat3x2".into()),
+            MatrixUniformValue::M3x3(_, _, _) => json_obj.insert("innertype".into(), "mat3x3".into()),
+            MatrixUniformValue::M3x4(_, _, _) => json_obj.insert("innertype".into(), "mat3x4".into()),
+            MatrixUniformValue::M4x2(_, _, _, _) => json_obj.insert("innertype".into(), "mat4x2".into()),
+            MatrixUniformValue::M4x3(_, _, _, _) => json_obj.insert("innertype".into(), "mat4x3".into()),
+            MatrixUniformValue::M4x4(_, _, _, _) => json_obj.insert("innertype".into(), "mat4x4".into()),
+        };
+
+        let columns = match self {
+            MatrixUniformValue::M2x2(c1, c2) => vec![c1.to_json(), c2.to_json()],
+            MatrixUniformValue::M2x3(c1, c2) => vec![c1.to_json(), c2.to_json()],
+            MatrixUniformValue::M2x4(c1, c2) => vec![c1.to_json(), c2.to_json()],
+            MatrixUniformValue::M3x2(c1, c2, c3) => vec![c1.to_json(), c2.to_json(), c3.to_json()],
+            MatrixUniformValue::M3x3(c1, c2, c3) => vec![c1.to_json(), c2.to_json(), c3.to_json()],
+            MatrixUniformValue::M3x4(c1, c2, c3) => vec![c1.to_json(), c2.to_json(), c3.to_json()],
+            MatrixUniformValue::M4x2(c1, c2, c3, c4) => vec![c1.to_json(), c2.to_json(), c3.to_json(), c4.to_json()],
+            MatrixUniformValue::M4x3(c1, c2, c3, c4) => vec![c1.to_json(), c2.to_json(), c3.to_json(), c4.to_json()],
+            MatrixUniformValue::M4x4(c1, c2, c3, c4) => vec![c1.to_json(), c2.to_json(), c3.to_json(), c4.to_json()],
+        };
+
+        json_obj.insert("columns".into(), columns.into());
     }
 }
 

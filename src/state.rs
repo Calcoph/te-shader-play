@@ -8,7 +8,7 @@ use std::{
 use cgmath::num_traits::ToBytes;
 use wgpu::{
     core::{
-        binding_model::LateMinBufferBindingSizeMismatch, command::{DrawError, RenderPassErrorInner}, device, pipeline::{CreateRenderPipelineError, CreateShaderModuleError}, validation::{BindingError, StageError}
+        binding_model::LateMinBufferBindingSizeMismatch, command::{DrawError, RenderPassErrorInner}, pipeline::{CreateRenderPipelineError, CreateShaderModuleError}, validation::{BindingError, StageError}
     },
     util::{BufferInitDescriptor, DeviceExt},
     BlendState, Buffer, BufferUsages, Color, ColorTargetState, ColorWrites, CompareFunction,
@@ -709,6 +709,7 @@ fn fs_main() -> @location(0) vec4<f32> {
         match message {
             Message::ReloadShader => self.refresh_shader(),
             Message::LoadShader(shader) => {
+                self.im_state.ui.load_uniforms(&shader, &self.gpu.device);
                 self.current_shader_path = shader;
                 self.refresh_shader();
             }
@@ -720,6 +721,9 @@ fn fs_main() -> @location(0) vec4<f32> {
             Message::ChangeWindowLevel(window_level) => {
                 render_message = Some(RenderMessage::ChangeWindowLevel(window_level))
             }
+            Message::SaveParameters => {
+                self.im_state.ui.inputs.save(&self.current_shader_path)
+            },
         };
 
         render_message

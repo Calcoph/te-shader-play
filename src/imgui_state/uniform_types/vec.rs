@@ -2,6 +2,7 @@ use std::borrow::Cow;
 
 use imgui::Ui;
 use mint::{Vector3, Vector4};
+use serde_json::{Map, Value as JsonValue};
 
 use crate::imgui_state::{
     uniform_types::{scalar::ScalarPrimitive, ScalarType},
@@ -30,6 +31,8 @@ trait VecUniformValue {
     fn cast_to_vec(&self, v: VecType) -> UniformValue;
     fn cast_to_matrix(&self, m: MatrixType) -> UniformValue;
     fn cast_to_transform(&self) -> UniformValue;
+    fn from_json(json_val: &Map<String, JsonValue>) -> Option<Self> where Self: Sized;
+    fn to_json(&self, json_obj: &mut Map<String, JsonValue>);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -313,6 +316,35 @@ impl VecUniformValue for Vec2UniformValue {
 
     fn cast_to_transform(&self) -> UniformValue {
         UniformValue::Transform(TransformUniformValue::default())
+    }
+
+    fn from_json(json_val: &Map<String, JsonValue>) -> Option<Self> {
+        let inner_type_2 = json_val.get("innertype2")?;
+        let i0 = json_val.get("item0")?;
+        let i1 = json_val.get("item1")?;
+        match inner_type_2.as_str()? {
+            "f32" => Some(Vec2UniformValue::F32(i0.as_f64()? as f32, i1.as_f64()? as f32)),
+            "u32" => Some(Vec2UniformValue::U32(i0.as_u64()? as u32, i1.as_u64()? as u32)),
+            "i32" => Some(Vec2UniformValue::I32(i0.as_i64()? as i32, i1.as_i64()? as i32)),
+            _ => None
+        }
+    }
+
+    fn to_json(&self, json_obj: &mut Map<String, JsonValue>) {
+        match self {
+            Vec2UniformValue::U32(_, _) => json_obj.insert("innertype2".into(), "u32".into()),
+            Vec2UniformValue::I32(_, _) => json_obj.insert("innertype2".into(), "i32".into()),
+            Vec2UniformValue::F32(_, _) => json_obj.insert("innertype2".into(), "f32".into()),
+        };
+
+        let (i0, i1): (JsonValue,JsonValue) = match self {
+            Vec2UniformValue::U32(i0, i1) => ((*i0).into(),(*i1).into()),
+            Vec2UniformValue::I32(i0, i1) => ((*i0).into(),(*i1).into()),
+            Vec2UniformValue::F32(i0, i1) => ((*i0).into(),(*i1).into()),
+        };
+
+        json_obj.insert("item0".into(), i0);
+        json_obj.insert("item1".into(), i1);
     }
 }
 
@@ -639,6 +671,37 @@ impl VecUniformValue for Vec3UniformValue {
 
     fn cast_to_transform(&self) -> UniformValue {
         UniformValue::Transform(TransformUniformValue::default())
+    }
+
+    fn from_json(json_val: &Map<String, JsonValue>) -> Option<Self> where Self: Sized {
+        let inner_type_2 = json_val.get("innertype2")?.as_str()?;
+        let i0 = json_val.get("item0")?;
+        let i1 = json_val.get("item1")?;
+        let i2 = json_val.get("item2")?;
+        match inner_type_2 {
+            "f32" => Some(Vec3UniformValue::F32(i0.as_f64()? as f32, i1.as_f64()? as f32, i2.as_f64()? as f32)),
+            "u32" => Some(Vec3UniformValue::U32(i0.as_u64()? as u32, i1.as_u64()? as u32, i2.as_u64()? as u32)),
+            "i32" => Some(Vec3UniformValue::I32(i0.as_i64()? as i32, i1.as_i64()? as i32, i2.as_i64()? as i32)),
+            _ => None
+        }
+    }
+
+    fn to_json(&self, json_obj: &mut Map<String, JsonValue>) {
+        match self {
+            Vec3UniformValue::U32(_, _, _) => json_obj.insert("innertype2".into(), "u32".into()),
+            Vec3UniformValue::I32(_, _, _) => json_obj.insert("innertype2".into(), "i32".into()),
+            Vec3UniformValue::F32(_, _, _) => json_obj.insert("innertype2".into(), "f32".into()),
+        };
+
+        let (i0, i1, i2): (JsonValue,JsonValue,JsonValue) = match self {
+            Vec3UniformValue::U32(i0, i1, i2) => ((*i0).into(),(*i1).into(),(*i2).into()),
+            Vec3UniformValue::I32(i0, i1, i2) => ((*i0).into(),(*i1).into(),(*i2).into()),
+            Vec3UniformValue::F32(i0, i1, i2) => ((*i0).into(),(*i1).into(),(*i2).into()),
+        };
+
+        json_obj.insert("item0".into(), i0);
+        json_obj.insert("item1".into(), i1);
+        json_obj.insert("item2".into(), i2);
     }
 }
 
@@ -994,6 +1057,39 @@ impl VecUniformValue for Vec4UniformValue {
     fn cast_to_transform(&self) -> UniformValue {
         UniformValue::Transform(TransformUniformValue::default())
     }
+
+    fn from_json(json_val: &Map<String, JsonValue>) -> Option<Self> where Self: Sized {
+        let inner_type_2 = json_val.get("innertype2")?.as_str()?;
+        let i0 = json_val.get("item0")?;
+        let i1 = json_val.get("item1")?;
+        let i2 = json_val.get("item2")?;
+        let i3 = json_val.get("item3")?;
+        match inner_type_2 {
+            "f32" => Some(Vec4UniformValue::F32(i0.as_f64()? as f32, i1.as_f64()? as f32, i2.as_f64()? as f32, i3.as_f64()? as f32)),
+            "u32" => Some(Vec4UniformValue::U32(i0.as_u64()? as u32, i1.as_u64()? as u32, i2.as_u64()? as u32, i3.as_u64()? as u32)),
+            "i32" => Some(Vec4UniformValue::I32(i0.as_i64()? as i32, i1.as_i64()? as i32, i2.as_i64()? as i32, i3.as_i64()? as i32)),
+            _ => None
+        }
+    }
+
+    fn to_json(&self, json_obj: &mut Map<String, JsonValue>) {
+        match self {
+            Vec4UniformValue::U32(_, _, _, _) => json_obj.insert("innertype2".into(), "u32".into()),
+            Vec4UniformValue::I32(_, _, _, _) => json_obj.insert("innertype2".into(), "i32".into()),
+            Vec4UniformValue::F32(_, _, _, _) => json_obj.insert("innertype2".into(), "f32".into()),
+        };
+
+        let (i0, i1, i2, i3): (JsonValue,JsonValue,JsonValue,JsonValue) = match self {
+            Vec4UniformValue::U32(i0, i1, i2, i3) => ((*i0).into(),(*i1).into(),(*i2).into(),(*i3).into()),
+            Vec4UniformValue::I32(i0, i1, i2, i3) => ((*i0).into(),(*i1).into(),(*i2).into(),(*i3).into()),
+            Vec4UniformValue::F32(i0, i1, i2, i3) => ((*i0).into(),(*i1).into(),(*i2).into(),(*i3).into()),
+        };
+
+        json_obj.insert("item0".into(), i0);
+        json_obj.insert("item1".into(), i1);
+        json_obj.insert("item2".into(), i2);
+        json_obj.insert("item3".into(), i3);
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -1149,6 +1245,30 @@ impl VectorUniformValue {
                 ))
             }
         };
+    }
+
+    pub(crate) fn from_json(uniform: &Map<String, JsonValue>) -> Option<VectorUniformValue> {
+        let inner_type = uniform.get("innertype")?;
+        match inner_type.as_str()? {
+            "vec2" => Some(VectorUniformValue::Vec2(Vec2UniformValue::from_json(uniform)?)),
+            "vec3" => Some(VectorUniformValue::Vec3(Vec3UniformValue::from_json(uniform)?)),
+            "vec4" => Some(VectorUniformValue::Vec4(Vec4UniformValue::from_json(uniform)?)),
+            _ => None
+        }
+    }
+
+    pub(crate) fn to_json(&self, json_obj: &mut Map<String, JsonValue>) {
+        match self {
+            VectorUniformValue::Vec2(_) => json_obj.insert("innertype".into(), "vec2".into()),
+            VectorUniformValue::Vec3(_) => json_obj.insert("innertype".into(), "vec3".into()),
+            VectorUniformValue::Vec4(_) => json_obj.insert("innertype".into(), "vec4".into()),
+        };
+
+        match self {
+            VectorUniformValue::Vec2(v) => v.to_json(json_obj),
+            VectorUniformValue::Vec3(v) => v.to_json(json_obj),
+            VectorUniformValue::Vec4(v) => v.to_json(json_obj),
+        }
     }
 }
 

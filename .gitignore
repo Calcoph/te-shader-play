@@ -4,3 +4,5 @@ imgui.ini
 /shaders/*
 !/shaders/shader.wgsl
 !/shaders/grid.wgsl
+
+save.json

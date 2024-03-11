@@ -1,4 +1,5 @@
 use cgmath::{Deg, Euler, Matrix4, Quaternion, Vector3, Vector4};
+use serde_json::{Map, Value as JsonValue};
 
 use crate::imgui_state::{ImguiUniformSelectable, UniformEditEvent};
 
@@ -91,6 +92,56 @@ impl TransformUniformValue {
                 Column4(0.0, 0.0, 0.0, 0.0),
             ),
         })
+    }
+
+    pub(crate) fn from_json(uniform: &Map<String, JsonValue>) -> Option<TransformUniformValue> {
+        let json_translation = uniform.get("translation")?.as_array()?;
+        let x_scale = uniform.get("xscale")?.as_f64()? as f32;
+        let y_scale = uniform.get("yscale")?.as_f64()? as f32;
+        let z_scale = uniform.get("zscale")?.as_f64()? as f32;
+        let json_rotation = uniform.get("rotation")?.as_array()?;
+
+        if json_translation.len() != 3 {
+            return None
+        }
+
+        let translation = Vector3 {
+            x: json_translation.get(0)?.as_f64()? as f32,
+            y: json_translation.get(1)?.as_f64()? as f32,
+            z: json_translation.get(2)?.as_f64()? as f32,
+        };
+
+        if json_rotation.len() != 4 {
+            return None
+        }
+
+        let rotation = Quaternion {
+            v: Vector3 {
+                x: json_rotation.get(0)?.as_f64()? as f32,
+                y: json_rotation.get(1)?.as_f64()? as f32,
+                z: json_rotation.get(2)?.as_f64()? as f32,
+            },
+            s: json_rotation.get(3)?.as_f64()? as f32,
+        };
+
+        Some(TransformUniformValue {
+            translation,
+            x_scale,
+            y_scale,
+            z_scale,
+            rotation,
+        })
+    }
+
+    pub(crate) fn to_json(&self, json_obj: &mut Map<String, JsonValue>) {
+        json_obj.insert("xscale".into(), self.x_scale.into());
+        json_obj.insert("yscale".into(), self.y_scale.into());
+        json_obj.insert("zscale".into(), self.z_scale.into());
+
+        let rotation = vec![self.rotation.v.x, self.rotation.v.y, self.rotation.v.z, self.rotation.s];
+        json_obj.insert("rotation".into(), rotation.into());
+        let translation = vec![self.translation.x, self.translation.y, self.translation.z];
+        json_obj.insert("translation".into(), translation.into());
     }
 }
 

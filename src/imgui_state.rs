@@ -4,12 +4,9 @@ use cgmath::{Deg, Matrix4, Point3, Rad, Vector4};
 use imgui::{ConfigFlags, Context, Image, StyleVar, TextureId, TreeNodeFlags, Ui};
 use imgui_wgpu::{Renderer, RendererConfig, Texture as ImTexture, TextureConfig};
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
+use serde_json::{Map, Value as JsonValue};
 use wgpu::{
-    core::pipeline::CreateShaderModuleError,
-    util::{BufferInitDescriptor, DeviceExt},
-    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
-    BindGroupLayoutEntry, BindingType, Buffer, BufferBindingType, BufferUsages, CommandEncoder,
-    Device, Queue, ShaderStages, TextureView,
+    core::pipeline::CreateShaderModuleError, util::{BufferInitDescriptor, DeviceExt}, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, Buffer, BufferBindingType, BufferUsages, CommandEncoder, Device, Queue, ShaderStages, TextureView
 };
 use winit::{
     event::Event,
@@ -61,6 +58,7 @@ pub enum Message {
     ReloadPipeline,
     ReloadMeshBuffers,
     ChangeWindowLevel(WindowLevel),
+    SaveParameters,
 }
 
 enum UniformEditEvent {
@@ -253,6 +251,13 @@ impl UniformBinding {
         let new_value = self.value.to_le_bytes();
         queue.write_buffer(&self.buffer, 0, &new_value).unwrap();
     }
+
+    fn to_json(&self) -> serde_json::Value {
+        let mut val = serde_json::Map::new();
+        val.insert("name".into(), self.name.clone().into());
+        val.insert("value".into(), self.value.to_json());
+        serde_json::Value::Object(val)
+    }
 }
 
 pub struct UniformGroup {
@@ -394,6 +399,19 @@ impl UniformGroup {
     ) {
         self.bindings[b_index].change_matrix_size(matrix_size, queue);
         self.refresh_bind_group(device);
+    }
+
+    fn to_json(&self) -> serde_json::Value {
+        let mut bindings = Vec::new();
+        for binding in self.bindings.iter() {
+            bindings.push(binding.to_json())
+        }
+
+        serde_json::Value::Array(bindings)
+    }
+
+    fn set_name(&mut self, b_index: usize, name: String) {
+        self.bindings[b_index].name = name
     }
 }
 
@@ -577,6 +595,113 @@ impl Uniforms {
     ) {
         self.groups[g_index].change_matrix_size(matrix_size, b_index, device, queue)
     }
+
+    pub(crate) fn save(&self, shader_name: &str) {
+        let config = std::fs::read_to_string("save.json").unwrap_or(String::from("{}"));
+        let config = serde_json::from_str(&config).unwrap_or(JsonValue::Object(Map::new()));
+
+        let mut config = if let JsonValue::Object(config) = config {
+            config
+        } else {
+            serde_json::Map::new()
+        };
+
+        config.get(shader_name);
+
+        let tul = self.time_uniform_location;
+        let time_uniform_location = JsonValue::Array(vec![JsonValue::Number(serde_json::Number::from(tul.0)), JsonValue::Number(serde_json::Number::from(tul.1))]);
+        let cul = self.camera_uniform_location;
+        let camera_uniform_location = JsonValue::Array(vec![JsonValue::Number(serde_json::Number::from(cul.0)), JsonValue::Number(serde_json::Number::from(cul.1))]);
+
+        let mut shader_conf = Map::new();
+        shader_conf.insert("time_uniform_location".into(), time_uniform_location);
+        shader_conf.insert("camera_uniform_location".into(), camera_uniform_location);
+
+        let mut json_groups = Vec::new();
+
+        for group in self.groups.iter() {
+            json_groups.push(group.to_json());
+        }
+
+        let json_groups = JsonValue::Array(json_groups);
+        shader_conf.insert("groups".into(), json_groups);
+
+        config.insert(shader_name.into(), JsonValue::Object(shader_conf));
+        let file = std::fs::OpenOptions::new().create(true).write(true).open("save.json").unwrap();
+        serde_json::to_writer(file, &config).unwrap();
+    }
+
+    pub(crate) fn load(device: &Device, shader_name: &str) -> Option<Uniforms> {
+        let config = std::fs::read_to_string("save.json").unwrap();//.unwrap_or(String::from("{}"));
+        let config: JsonValue = serde_json::from_str(&config).unwrap();//.unwrap_or(json::JsonValue::Object(Object::new()));
+
+        let config = config.as_object()?
+            .get(shader_name)?
+            .as_object()?;
+
+        let time_uniform_location = config.get("time_uniform_location")?.as_array()?;
+        let camera_uniform_location = config.get("camera_uniform_location")?.as_array()?;
+
+        let tul_0 = time_uniform_location.get(0)?;
+        let tul_1 = time_uniform_location.get(1)?;
+        let cul_0 = camera_uniform_location.get(0)?;
+        let cul_1 = camera_uniform_location.get(1)?;
+
+        let (tul, cul) = if let (Some(tul_0),Some(tul_1),Some(cul_0),Some(cul_1)) = (tul_0.as_u64(), tul_1.as_u64(), cul_0.as_u64(), cul_1.as_u64()) {
+            ((tul_0 as usize, tul_1 as usize), (cul_0 as usize, cul_1 as usize))
+        } else {
+            if let None = cul_0.as_u64() {
+                println!("cul_0 is not a number")
+            }
+            if let None = cul_1.as_u64() {
+                println!("cul_1 is not a number")
+            }
+            if let None = tul_0.as_u64() {
+                println!("tul_0 is not a number")
+            }
+            if let None = tul_1.as_u64() {
+                println!("tul_1 is not a number")
+            }
+            println!("Couldn't load saved data because uniform locations items aren't numbers");
+            return None
+        };
+
+        let json_groups = config.get("groups")?.as_array()?;
+
+        let mut groups = Vec::new();
+        let mut time_count = 0;
+        let mut camera_count = 0;
+        for group in json_groups {
+            let mut uniform_group = UniformGroup::new(device);
+            let group = group.as_array()?;
+            for (i, uniform) in group.iter().enumerate() {
+                let name = uniform.get("name")?.as_str()?.into();
+                let uniform = uniform.get("value")?.as_object()?;
+                let uniform = UniformValue::from_json(uniform)?;
+                uniform_group.add_custom(device, uniform);
+                uniform_group.set_name(i, name);
+                match uniform {
+                    UniformValue::BuiltIn(BuiltinValue::Time) => time_count += 1,
+                    UniformValue::BuiltIn(BuiltinValue::Camera { .. }) => camera_count += 1,
+                    _ => ()
+                }
+            }
+            groups.push(uniform_group)
+        }
+
+        if time_count != 1 || camera_count != 1 {
+            println!("Couldn't load saved data because there is not exactl 1 time and 1 camera");
+            return None
+        }
+
+        // TODO: Check that time and camera are in correct positions
+
+        Some(Uniforms {
+            groups,
+            time_uniform_location: tul,
+            camera_uniform_location: cul
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -694,6 +819,10 @@ impl UiState {
             ui.separator();
             if ui.button("Add Bind Group") {
                 edit_event = Some(UniformEditEvent::AddBindGroup)
+            }
+
+            if ui.button("Save parameters") {
+                message = Some(Message::SaveParameters)
             }
 
             if let Some(event) = edit_event {
@@ -815,6 +944,13 @@ impl UiState {
     fn check_shader_exists(&mut self) {
         let path = Path::new("shaders").join(&self.shader_name);
         self.shader_exists = path.exists();
+    }
+
+    pub(crate) fn load_uniforms(&mut self, shader_name: &str, device: &Device) {
+        self.inputs = match Uniforms::load(device, shader_name) {
+            Some(inputs) => inputs,
+            None => panic!("Not successful")//Uniforms::new(device)
+        }
     }
 }
 
