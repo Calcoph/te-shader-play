@@ -1,3 +1,5 @@
+// Source: http://asliceofrendering.com/scene%20helper/2020/01/05/InfiniteGrid/
+
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) uv: vec2<f32>,
@@ -136,18 +138,25 @@ fn vs_main(inp: VertexInput) -> VertexOutput {
     return out;
 }
 
+struct FragmentOutput {
+    @location(0) color: vec4<f32>,
+    @builtin(frag_depth) depth: f32,
+}
+
 @fragment
-fn fs_main(coord_in: VertexOutput) -> @location(0) vec4<f32> {
+fn fs_main(coord_in: VertexOutput) -> FragmentOutput {
     let t = -coord_in.nearPoint.y / (coord_in.farPoint.y - coord_in.nearPoint.y);
     let fragPos3D = coord_in.nearPoint + t * (coord_in.farPoint - coord_in.nearPoint);
     var final_color = grid(fragPos3D, 1.0);
-    //final_color = vec4(1.0,0.0,0.0, 1.0);
     if t <= 0.0 {
         final_color.w = 0.0;
     }
 
-    //final_color.w = 1.0;
-    return final_color;
+    var out: FragmentOutput;
+    out.color = final_color;
+    out.depth = computeDepth(fragPos3D);
+
+    return out;
 }
 
 fn grid(fragPos3D: vec3<f32>, scale: f32) -> vec4<f32> {
@@ -169,6 +178,12 @@ fn grid(fragPos3D: vec3<f32>, scale: f32) -> vec4<f32> {
     }
 
     return final_color;
+}
+
+fn computeDepth(pos: vec3<f32>) -> f32 {
+    let clip_space_pos = camera.projection * camera.view * vec4(pos, 1.0);
+
+    return (clip_space_pos.z / clip_space_pos.w);
 }
 
 fn palette(t: f32) -> vec3<f32> {

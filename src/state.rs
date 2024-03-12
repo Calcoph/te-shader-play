@@ -358,7 +358,7 @@ fn fs_main() -> @location(0) vec4<f32> {
                     .create_shader_module(ShaderModuleDescriptor {
                         label: None,
                         source: ShaderSource::Wgsl((&grid_shader_src).into()),
-                    })
+                    }).map_err(|err| err.to_string())
                     .unwrap(),
             );
         let grid_shader = Shader {
@@ -583,7 +583,7 @@ fn fs_main() -> @location(0) vec4<f32> {
                 depth_stencil: Some(DepthStencilState {
                     format: TextureFormat::Depth32Float,
                     depth_write_enabled: true,
-                    depth_compare: CompareFunction::Always,
+                    depth_compare: CompareFunction::Less,
                     stencil: StencilState::default(),
                     bias: DepthBiasState::default(),
                 }),

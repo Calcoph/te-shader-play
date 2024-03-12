@@ -80,10 +80,12 @@ fn draw_image(
     view: &TextureView,
     depth_view: &TextureView,
 ) -> Result<(), RenderPassError> {
+    draw_custom_shader(state, encoder, view, &depth_view)?;
     if state.im_state.ui.draw_grid {
-        draw_grid(state, encoder, view, &depth_view)?;
+        draw_grid(state, encoder, view, &depth_view)
+    } else {
+        Ok(())
     }
-    draw_custom_shader(state, encoder, view, &depth_view)
 }
 
 fn draw_grid(
@@ -93,21 +95,20 @@ fn draw_grid(
     depth_view: &TextureView,
 ) -> Result<(), RenderPassError> {
     assert!(state.im_state.ui.draw_grid);
-    let background_color = state.get_background_color();
     let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
         label: None,
         color_attachments: &[Some(RenderPassColorAttachment {
             view,
             resolve_target: None,
             ops: Operations {
-                load: LoadOp::Clear(background_color),
+                load: LoadOp::Load,
                 store: StoreOp::Store,
             },
         })],
         depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
             view: depth_view,
             depth_ops: Some(Operations {
-                load: LoadOp::Clear(1.0),
+                load: LoadOp::Load,
                 store: StoreOp::Store
             }),
             stencil_ops: None,
@@ -132,36 +133,19 @@ fn draw_custom_shader(
     view: &TextureView,
     depth_view: &TextureView,
 ) -> Result<(), RenderPassError> {
-    let (ops, depth_stencil_attachment) = if state.im_state.ui.draw_grid {
-        let ops = Operations {
-            load: LoadOp::Load,
-            store: StoreOp::Store,
-        };
-        let depth_stencil_attachment = Some(RenderPassDepthStencilAttachment {
-            view: depth_view,
-            depth_ops: Some(Operations {
-                load: LoadOp::Load,
-                store: StoreOp::Store,
-            }),
-            stencil_ops: None,
-        });
-        (ops, depth_stencil_attachment)
-    } else {
-        let background_color = state.get_background_color();
-        let ops = Operations {
-            load: LoadOp::Clear(background_color),
-            store: StoreOp::Store,
-        };
-        let depth_stencil_attachment = Some(RenderPassDepthStencilAttachment {
-            view: depth_view,
-            depth_ops: Some(Operations {
-                load: LoadOp::Clear(1.0),
-                store: StoreOp::Store,
-            }),
-            stencil_ops: None,
-        });
-        (ops, depth_stencil_attachment)
+    let background_color = state.get_background_color();
+    let ops = Operations {
+        load: LoadOp::Clear(background_color),
+        store: StoreOp::Store,
     };
+    let depth_stencil_attachment = Some(RenderPassDepthStencilAttachment {
+        view: depth_view,
+        depth_ops: Some(Operations {
+            load: LoadOp::Clear(1.0),
+            store: StoreOp::Store,
+        }),
+        stencil_ops: None,
+    });
 
     let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
         label: None,
