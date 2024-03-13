@@ -632,8 +632,8 @@ impl Uniforms {
     }
 
     pub(crate) fn load(device: &Device, shader_name: &str) -> Option<Uniforms> {
-        let config = std::fs::read_to_string("save.json").unwrap_or(String::from("{}"));
-        let config: JsonValue = serde_json::from_str(&config).unwrap_or(JsonValue::Object(Map::new()));
+        let config = std::fs::read_to_string("save.json").ok()?;
+        let config: JsonValue = serde_json::from_str(&config).ok()?;
 
         let config = config.as_object()?
             .get(shader_name)?
