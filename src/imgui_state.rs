@@ -632,8 +632,8 @@ impl Uniforms {
     }
 
     pub(crate) fn load(device: &Device, shader_name: &str) -> Option<Uniforms> {
-        let config = std::fs::read_to_string("save.json").unwrap();//.unwrap_or(String::from("{}"));
-        let config: JsonValue = serde_json::from_str(&config).unwrap();//.unwrap_or(json::JsonValue::Object(Object::new()));
+        let config = std::fs::read_to_string("save.json").unwrap_or(String::from("{}"));
+        let config: JsonValue = serde_json::from_str(&config).unwrap_or(JsonValue::Object(Map::new()));
 
         let config = config.as_object()?
             .get(shader_name)?
@@ -949,7 +949,7 @@ impl UiState {
     pub(crate) fn load_uniforms(&mut self, shader_name: &str, device: &Device) {
         self.inputs = match Uniforms::load(device, shader_name) {
             Some(inputs) => inputs,
-            None => panic!("Not successful")//Uniforms::new(device)
+            None => Uniforms::new(device)
         }
     }
 }
