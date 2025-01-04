@@ -1031,7 +1031,7 @@ impl ImState {
                 depth_stencil_attachment: None,
                 occlusion_query_set: None,
                 timestamp_writes: None,
-            });
+            }).unwrap();
             self.renderer
                 .render(
                     self.context.render(),

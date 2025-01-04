@@ -115,7 +115,7 @@ fn draw_grid(
         }),
         timestamp_writes: None,
         occlusion_query_set: None,
-    });
+    }).unwrap();
     render_pass.set_pipeline(&state.pipelines.grid);
     for (g_index, group) in state.im_state.ui.inputs.groups.iter().enumerate() {
         render_pass.set_bind_group(g_index as u32, &group.bind_group, &[]);
@@ -124,7 +124,7 @@ fn draw_grid(
     render_pass.set_vertex_buffer(0, state.vertices.grid.vertex_buffer.slice(..));
     render_pass.set_index_buffer(state.vertices.grid.index_buffer.slice(..), IndexFormat::Uint32);
     render_pass.draw_indexed(0..state.vertices.grid.indices.len() as u32, 0, 0..1);
-    render_pass.encode()
+    render_pass.end()
 }
 
 fn draw_custom_shader(
@@ -157,14 +157,14 @@ fn draw_custom_shader(
         depth_stencil_attachment,
         timestamp_writes: None,
         occlusion_query_set: None,
-    });
-    render_pass.set_pipeline(&state.pipelines.custom_shader);
+    }).unwrap();
+    render_pass.set_pipeline(&state.pipelines.custom_shader).unwrap();
     for (g_index, group) in state.im_state.ui.inputs.groups.iter().enumerate() {
         render_pass.set_bind_group(g_index as u32, &group.bind_group, &[]);
     }
 
-    render_pass.set_vertex_buffer(0, state.vertices.custom_shader.vertex_buffer.slice(..));
-    render_pass.set_index_buffer(state.vertices.custom_shader.index_buffer.slice(..), IndexFormat::Uint32);
-    render_pass.draw_indexed(0..state.vertices.custom_shader.indices.len() as u32, 0, 0..1);
-    render_pass.encode()
+    render_pass.set_vertex_buffer(0, state.vertices.custom_shader.vertex_buffer.slice(..)).unwrap();
+    render_pass.set_index_buffer(state.vertices.custom_shader.index_buffer.slice(..), IndexFormat::Uint32).unwrap();
+    render_pass.draw_indexed(0..state.vertices.custom_shader.indices.len() as u32, 0, 0..1).unwrap();
+    render_pass.end()
 }

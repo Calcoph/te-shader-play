@@ -6,15 +6,7 @@ use cgmath::num_traits::ToBytes;
 use wgpu::{
     core::{
         binding_model::LateMinBufferBindingSizeMismatch, command::{DrawError, RenderPassErrorInner}, pipeline::{CreateRenderPipelineError, CreateShaderModuleError}, validation::{BindingError, StageError}
-    },
-    util::{BufferInitDescriptor, DeviceExt},
-    BlendState, Buffer, BufferUsages, Color, ColorTargetState, ColorWrites, CompareFunction,
-    DepthBiasState, DepthStencilState, Device, Extent3d, FragmentState, FrontFace,
-    MultisampleState, PipelineLayout, PipelineLayoutDescriptor, PolygonMode, PrimitiveState,
-    PrimitiveTopology, Queue, RenderPipeline, RenderPipelineDescriptor, ShaderModule,
-    ShaderModuleDescriptor, ShaderSource,
-    StencilState, Surface, SurfaceConfiguration, Texture, TextureDescriptor, TextureFormat,
-    TextureUsages, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
+    }, util::{BufferInitDescriptor, DeviceExt}, BlendState, Buffer, BufferUsages, Color, ColorTargetState, ColorWrites, CompareFunction, DepthBiasState, DepthStencilState, Device, Extent3d, FragmentState, FrontFace, MultisampleState, PipelineCompilationOptions, PipelineLayout, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, Queue, RenderPipeline, RenderPipelineDescriptor, ShaderModule, ShaderModuleDescriptor, ShaderSource, StencilState, Surface, SurfaceConfiguration, Texture, TextureDescriptor, TextureFormat, TextureUsages, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode
 };
 use winit::window::Window;
 
@@ -379,15 +371,27 @@ fn fs_main() -> @location(0) vec4<f32> {
                 layout: Some(&layout),
                 vertex: VertexState {
                     module: &dummy_shader,
-                    entry_point: "vs_main",
+                    entry_point: Some("vs_main"),
                     buffers: &[],
                     compilation_options: Default::default(),
                 },
                 primitive: PrimitiveState::default(),
                 depth_stencil: None,
                 multisample: MultisampleState::default(),
-                fragment: None,
+                fragment: Some(FragmentState {
+                    module: &dummy_shader,
+                    entry_point: None,
+                    compilation_options: Default::default(),
+                    targets: &[
+                        Some(ColorTargetState {
+                            format: TextureFormat::Rgba8Unorm,
+                            blend: None,
+                            write_mask: ColorWrites::all(),
+                        })
+                    ],
+                }),
                 multiview: None,
+                cache: None,
             })
             .unwrap();
         let grid_pipeline = gpu
@@ -397,15 +401,27 @@ fn fs_main() -> @location(0) vec4<f32> {
                 layout: Some(&layout),
                 vertex: VertexState {
                     module: &dummy_shader,
-                    entry_point: "vs_main",
+                    entry_point: Some("vs_main"),
                     buffers: &[],
                     compilation_options: Default::default(),
                 },
                 primitive: PrimitiveState::default(),
                 depth_stencil: None,
                 multisample: MultisampleState::default(),
-                fragment: None,
+                fragment: Some(FragmentState {
+                    module: &dummy_shader,
+                    entry_point: None,
+                    compilation_options: Default::default(),
+                    targets: &[
+                        Some(ColorTargetState {
+                            format: TextureFormat::Rgba8Unorm,
+                            blend: None,
+                            write_mask: ColorWrites::all(),
+                        })
+                    ],
+                }),
                 multiview: None,
+                cache: None,
             })
             .unwrap();
 
@@ -508,7 +524,7 @@ fn fs_main() -> @location(0) vec4<f32> {
                 layout: Some(&layout),
                 vertex: VertexState {
                     module: &self.grid_shader.shader,
-                    entry_point: "vs_main",
+                    entry_point: Some("vs_main"),
                     buffers: &[VertexBufferLayout {
                         array_stride: std::mem::size_of::<f32>() as u64 * 3,
                         step_mode: VertexStepMode::Vertex,
@@ -543,7 +559,7 @@ fn fs_main() -> @location(0) vec4<f32> {
                 },
                 fragment: Some(FragmentState {
                     module: &self.grid_shader.shader,
-                    entry_point: "fs_main",
+                    entry_point: Some("fs_main"),
                     targets: &[Some(ColorTargetState {
                         format: self.gpu.config.format,
                         blend: Some(BlendState::ALPHA_BLENDING),
@@ -552,6 +568,7 @@ fn fs_main() -> @location(0) vec4<f32> {
                     compilation_options: Default::default(),
                 }),
                 multiview: None,
+                cache: None,
             });
         match self
             .gpu
@@ -561,7 +578,7 @@ fn fs_main() -> @location(0) vec4<f32> {
                 layout: Some(&layout),
                 vertex: VertexState {
                     module: &self.current_shader.shader,
-                    entry_point: "vs_main",
+                    entry_point: Some("vs_main"),
                     buffers: &[VertexBufferLayout {
                         array_stride: std::mem::size_of::<f32>() as u64 * 3,
                         step_mode: VertexStepMode::Vertex,
@@ -596,7 +613,7 @@ fn fs_main() -> @location(0) vec4<f32> {
                 },
                 fragment: Some(FragmentState {
                     module: &self.current_shader.shader,
-                    entry_point: "fs_main",
+                    entry_point: Some("fs_main"),
                     targets: &[Some(ColorTargetState {
                         format: self.gpu.config.format,
                         blend: Some(BlendState::ALPHA_BLENDING),
@@ -605,6 +622,7 @@ fn fs_main() -> @location(0) vec4<f32> {
                     compilation_options: Default::default(),
                 }),
                 multiview: None,
+                cache: None,
             }) {
             Ok(pipeline) => Pipelines {
                 custom_shader: pipeline,
@@ -627,7 +645,6 @@ fn fs_main() -> @location(0) vec4<f32> {
                         BindingError::Invisible => todo!(),
                         BindingError::WrongType => todo!(),
                         BindingError::WrongAddressSpace { .. } => todo!(),
-                        BindingError::WrongBufferSize(_) => todo!(),
                         BindingError::WrongTextureViewDimension { .. } => todo!(),
                         BindingError::WrongTextureClass { .. } => todo!(),
                         BindingError::WrongSamplerComparison => todo!(),
@@ -636,19 +653,16 @@ fn fs_main() -> @location(0) vec4<f32> {
                         BindingError::UnsupportedTextureStorageAccess(_) => todo!(),
                         _ => todo!(),
                     },
-                    StageError::InvalidModule => todo!(),
                     StageError::InvalidWorkgroupSize { .. } => todo!(),
                     StageError::TooManyVaryings { .. } => todo!(),
                     StageError::MissingEntryPoint(_) => todo!(),
                     StageError::Filtering { .. } => todo!(),
                     StageError::Input { .. } => todo!(),
-                    StageError::InputNotConsumed { .. } => todo!(),
                     _ => todo!(),
                 }
             }
             CreateRenderPipelineError::ColorAttachment(_) => todo!(),
             CreateRenderPipelineError::Device(_) => todo!(),
-            CreateRenderPipelineError::InvalidLayout => todo!(),
             CreateRenderPipelineError::Implicit(_) => todo!(),
             CreateRenderPipelineError::ColorState(_, _) => todo!(),
             CreateRenderPipelineError::DepthStencilState(_) => todo!(),

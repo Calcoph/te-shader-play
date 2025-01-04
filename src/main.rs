@@ -4,7 +4,7 @@ use wgpu::{
     Instance, InstanceDescriptor, InstanceFlags, Limits, PowerPreference, PresentMode,
     RequestAdapterOptions, TextureUsages,
 };
-use winit::{dpi, event_loop::EventLoopBuilder, window::WindowBuilder};
+use winit::{dpi, event_loop::EventLoopBuilder, window::Window};
 
 use crate::event_handling::run_event_loop;
 
@@ -22,10 +22,7 @@ fn main() {
         .build()
         .expect("Couldn't create event loop");
 
-    let wb =
-        WindowBuilder::new().with_inner_size(dpi::PhysicalSize::new(SCREEN_WIDTH, SCREEN_HEIGHT));
-
-    let window = wb.build(&event_loop).expect("Couldn't create window");
+    let window = event_loop.create_window(Window::default_attributes().with_inner_size(dpi::PhysicalSize::new(SCREEN_WIDTH, SCREEN_HEIGHT))).expect("Couldn't create window");
     let instance = Instance::new(InstanceDescriptor {
         backends: Backends::all(),
         flags: InstanceFlags::default(),
@@ -49,6 +46,7 @@ fn main() {
             label: None,
             required_features: Features::default() | Features::POLYGON_MODE_LINE,
             required_limits: Limits::downlevel_webgl2_defaults(),
+            memory_hints: Default::default(),
         },
         None,
     ))

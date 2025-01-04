@@ -1,6 +1,6 @@
 use winit::{
     event::{ElementState, Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoopWindowTarget},
+    event_loop::{ActiveEventLoop, ControlFlow},
     window::Window,
 };
 
@@ -8,7 +8,7 @@ use crate::{rendering::render, State};
 
 pub fn run_event_loop(
     event: Event<()>,
-    window_target: &EventLoopWindowTarget<()>,
+    window_target: &ActiveEventLoop,
     window: &Window,
     state: &mut State,
 ) {
@@ -27,7 +27,7 @@ pub fn run_event_loop(
 
 fn handle_window_event(
     event: WindowEvent,
-    window_target: &EventLoopWindowTarget<()>,
+    window_target: &ActiveEventLoop,
     state: &mut State,
     window: &Window,
 ) {
