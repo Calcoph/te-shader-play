@@ -6,11 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-wgpu = { git = "https://github.com/Calcoph/te-wgpu", rev = "6bb30b0" }
+wgpu = { git = "https://github.com/Calcoph/te-wgpu", rev = "ca6df5041e5878b61c85676ae2f238943d6cef85" }
 winit = { version = "0.29.10" }
 pollster = "0.3"
-imgui = { version = "0.11", features = ["docking"] }
-imgui-winit-support = "0.11"
+imgui = { version = "0.12", features = ["docking"] }
+imgui-winit-support = "0.12"
 imgui-wgpu = "0.24"
 mint = "0.5.9"
 cgmath = "0.18.0"
@@ -19,5 +19,9 @@ serde_json = "1.0.114"
 
 [patch.crates-io]
 imgui = { git = "https://github.com/imgui-rs/imgui-rs" }
-imgui-winit-support = { git = "https://github.com/imgui-rs/imgui-rs" }
-imgui-wgpu = { git = "https://github.com/Calcoph/imgui-wgpu-rs", rev = "0917255" }
+imgui-wgpu = { git = "https://github.com/Calcoph/imgui-wgpu-rs", rev = "b216990" }
+
+# Patch so imgui doesn't crash. Remove this when updating imgui version
+[profile.dev.package.imgui]
+opt-level = 2
+debug-assertions = false

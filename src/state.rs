@@ -1,8 +1,5 @@
 use std::{
-    borrow::Cow,
-    fs,
-    path::Path,
-    time::{Duration, Instant},
+    borrow::Cow, collections::HashMap, fs, path::Path, time::{Duration, Instant}
 };
 
 use cgmath::num_traits::ToBytes;
@@ -15,7 +12,7 @@ use wgpu::{
     DepthBiasState, DepthStencilState, Device, Extent3d, FragmentState, FrontFace,
     MultisampleState, PipelineLayout, PipelineLayoutDescriptor, PolygonMode, PrimitiveState,
     PrimitiveTopology, Queue, RenderPipeline, RenderPipelineDescriptor, ShaderModule,
-    ShaderModuleDescriptor, ShaderSource, ShaderStages,
+    ShaderModuleDescriptor, ShaderSource,
     StencilState, Surface, SurfaceConfiguration, Texture, TextureDescriptor, TextureFormat,
     TextureUsages, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
 };
@@ -384,6 +381,7 @@ fn fs_main() -> @location(0) vec4<f32> {
                     module: &dummy_shader,
                     entry_point: "vs_main",
                     buffers: &[],
+                    compilation_options: Default::default(),
                 },
                 primitive: PrimitiveState::default(),
                 depth_stencil: None,
@@ -401,6 +399,7 @@ fn fs_main() -> @location(0) vec4<f32> {
                     module: &dummy_shader,
                     entry_point: "vs_main",
                     buffers: &[],
+                    compilation_options: Default::default(),
                 },
                 primitive: PrimitiveState::default(),
                 depth_stencil: None,
@@ -519,6 +518,7 @@ fn fs_main() -> @location(0) vec4<f32> {
                             shader_location: 0,
                         }],
                     }],
+                    compilation_options: Default::default(),
                 },
                 primitive: PrimitiveState {
                     topology: PrimitiveTopology::TriangleList,
@@ -549,6 +549,7 @@ fn fs_main() -> @location(0) vec4<f32> {
                         blend: Some(BlendState::ALPHA_BLENDING),
                         write_mask: ColorWrites::ALL,
                     })],
+                    compilation_options: Default::default(),
                 }),
                 multiview: None,
             });
@@ -570,6 +571,7 @@ fn fs_main() -> @location(0) vec4<f32> {
                             shader_location: 0,
                         }],
                     }],
+                    compilation_options: Default::default(),
                 },
                 primitive: PrimitiveState {
                     topology: PrimitiveTopology::TriangleList,
@@ -600,6 +602,7 @@ fn fs_main() -> @location(0) vec4<f32> {
                         blend: Some(BlendState::ALPHA_BLENDING),
                         write_mask: ColorWrites::ALL,
                     })],
+                    compilation_options: Default::default(),
                 }),
                 multiview: None,
             }) {
@@ -613,38 +616,34 @@ fn fs_main() -> @location(0) vec4<f32> {
 
     fn handle_pipeline_err(&mut self, err: CreateRenderPipelineError) -> Pipelines {
         match err {
-            CreateRenderPipelineError::Stage { stage, error } => {
-                if let ShaderStages::FRAGMENT = stage {
-                    match error {
-                        StageError::Binding(binding, error) => match error {
-                            BindingError::Missing => self.im_state.ui.inputs.define_binding(
-                                binding.group,
-                                binding.binding,
-                                &self.gpu.device,
-                            ),
-                            BindingError::Invisible => todo!(),
-                            BindingError::WrongType => todo!(),
-                            BindingError::WrongAddressSpace { .. } => todo!(),
-                            BindingError::WrongBufferSize(_) => todo!(),
-                            BindingError::WrongTextureViewDimension { .. } => todo!(),
-                            BindingError::WrongTextureClass { .. } => todo!(),
-                            BindingError::WrongSamplerComparison => todo!(),
-                            BindingError::InconsistentlyDerivedType => todo!(),
-                            BindingError::BadStorageFormat(_) => todo!(),
-                            BindingError::UnsupportedTextureStorageAccess(_) => todo!(),
-                            _ => todo!(),
-                        },
-                        StageError::InvalidModule => todo!(),
-                        StageError::InvalidWorkgroupSize { .. } => todo!(),
-                        StageError::TooManyVaryings { .. } => todo!(),
-                        StageError::MissingEntryPoint(_) => todo!(),
-                        StageError::Filtering { .. } => todo!(),
-                        StageError::Input { .. } => todo!(),
-                        StageError::InputNotConsumed { .. } => todo!(),
+            CreateRenderPipelineError::Stage { stage: _, error } => {
+                match error {
+                    StageError::Binding(binding, error) => match error {
+                        BindingError::Missing => self.im_state.ui.inputs.define_binding(
+                            binding.group,
+                            binding.binding,
+                            &self.gpu.device,
+                        ),
+                        BindingError::Invisible => todo!(),
+                        BindingError::WrongType => todo!(),
+                        BindingError::WrongAddressSpace { .. } => todo!(),
+                        BindingError::WrongBufferSize(_) => todo!(),
+                        BindingError::WrongTextureViewDimension { .. } => todo!(),
+                        BindingError::WrongTextureClass { .. } => todo!(),
+                        BindingError::WrongSamplerComparison => todo!(),
+                        BindingError::InconsistentlyDerivedType => todo!(),
+                        BindingError::BadStorageFormat(_) => todo!(),
+                        BindingError::UnsupportedTextureStorageAccess(_) => todo!(),
                         _ => todo!(),
-                    }
-                } else {
-                    panic!("Cannot add parameters used in places other than the fragment shader")
+                    },
+                    StageError::InvalidModule => todo!(),
+                    StageError::InvalidWorkgroupSize { .. } => todo!(),
+                    StageError::TooManyVaryings { .. } => todo!(),
+                    StageError::MissingEntryPoint(_) => todo!(),
+                    StageError::Filtering { .. } => todo!(),
+                    StageError::Input { .. } => todo!(),
+                    StageError::InputNotConsumed { .. } => todo!(),
+                    _ => todo!(),
                 }
             }
             CreateRenderPipelineError::ColorAttachment(_) => todo!(),

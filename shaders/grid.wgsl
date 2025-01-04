@@ -147,7 +147,10 @@ struct FragmentOutput {
 fn fs_main(coord_in: VertexOutput) -> FragmentOutput {
     let t = -coord_in.nearPoint.y / (coord_in.farPoint.y - coord_in.nearPoint.y);
     let fragPos3D = coord_in.nearPoint + t * (coord_in.farPoint - coord_in.nearPoint);
+    let linear_depth = computeLinearDepth(fragPos3D);
+    let fading = min(1.0, max(0.0, 1.0 - linear_depth));
     var final_color = grid(fragPos3D, 1.0);
+    final_color.w *= pow(fading * 30.0, 2.0);
     if t <= 0.0 {
         final_color.w = 0.0;
     }
@@ -184,6 +187,17 @@ fn computeDepth(pos: vec3<f32>) -> f32 {
     let clip_space_pos = camera.projection * camera.view * vec4(pos, 1.0);
 
     return (clip_space_pos.z / clip_space_pos.w);
+}
+
+fn computeLinearDepth(pos: vec3<f32>) -> f32 {
+    let znear = 0.1;
+    let zfar = 100.0;
+    let clip_space_pos = camera.projection * camera.view * vec4(pos, 1.0);
+    let clip_space_depth = (clip_space_pos.z / clip_space_pos.w) * 2.0 - 1.0;
+    let linear_depth = (2.0 * znear * zfar) / (zfar + znear - clip_space_depth * (zfar - znear));
+
+    return clip_space_depth;
+    //return linear_depth / zfar;
 }
 
 fn palette(t: f32) -> vec3<f32> {
